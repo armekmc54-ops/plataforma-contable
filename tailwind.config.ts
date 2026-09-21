@@ -8,10 +8,13 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        navy: "#0E1E33",
-        "navy-deep": "#0B1830",
-        gold: "#B8935F",
-        slate: "#5C6470",
+        background: "#0A0C10",
+        surface: "#12151D",
+        "surface-subtle": "#181C26",
+        border: "rgba(255, 255, 255, 0.08)",
+        accent: "#C5A880",
+        "accent-hover": "#D4B993",
+        "accent-muted": "rgba(197, 168, 128, 0.12)",
       },
     },
   },

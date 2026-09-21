@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   calculateInvoice,
   calculatePayroll,
@@ -10,113 +11,131 @@ import {
   PayrollResult,
   AmortizationRow,
 } from "@/lib/tax-engine";
+import { parseCFDIXml, ParsedCFDI } from "@/lib/cfdi-parser";
 
 const firm = {
-  name: "Vázquez & Asociados · Firma Contable",
+  name: "Vázquez & Asociados",
+  subname: "Firma Contable & Fiscal",
   counterName: "Mtro. Alejandro Vázquez, CPC",
-  tagline: "Contabilidad estratégica, optimización fiscal y gobierno corporativo con la precisión de un oficio, no de una plantilla.",
-  credentials: "Contador Público Certificado · Cédula Profesional 8492019 · Maestría en Derecho Fiscal",
-  specialty: "Personas Físicas de Altos Ingresos, Freelancers Tech/Creators, RESICO y PyMEs en Expansión",
+  credentials: "CPC · Cédula Profesional 8492019 · Maestría en Derecho Fiscal",
   whatsappNumber: "525512345678",
   email: "contacto@vazquezcontadores.mx",
   phone: "+52 (55) 5482-9000",
-  location: "Torre Reforma 483, Piso 28, Cuauhtémoc, CDMX",
+  location: "Torre Reforma 483, CDMX",
 };
 
-// Noticias y Reformas Fiscales Automatizadas (Newsfeed DOF / SAT)
 const initialNews = [
   {
     id: "1",
-    source: "SAT · Resolución Miscelánea Fiscal",
-    badge: "Oficial",
-    date: "20 Septiembre 2026",
-    title: "Nuevas precisiones para la permanencia en RESICO 2026",
-    aiSummary:
-      "El SAT flexibiliza los plazos de regularización para contribuyentes que omitieron la declaración anual anterior sin expulsarlos de inmediato al Régimen General, siempre que subsanen dentro de los 30 días hábiles posteriores a la notificación.",
-    impact: "Afecta a Personas Físicas en RESICO con ingresos anuales de hasta $3.5 MDP.",
+    source: "SAT · Resolución Miscelánea",
+    date: "Septiembre 2026",
+    title: "Precisiones de permanencia en RESICO",
+    summary:
+      "Nuevos plazos de 30 días hábiles para regularizar omisiones sin expulsión automática al Régimen General.",
+    impact: "Personas físicas con ingresos hasta $3.5 MDP.",
   },
   {
     id: "2",
-    source: "Diario Oficial de la Federación (DOF)",
-    badge: "Decreto Presidencial",
-    date: "14 Septiembre 2026",
-    title: "Actualización de incentivos para deducción acelerada de activos tecnológicos",
-    aiSummary:
-      "Se autoriza un porcentaje de depreciación de hasta el 50% en el primer ejercicio para inversiones en infraestructura de inteligencia artificial, servidores y software contable especializado.",
-    impact: "Beneficio directo para empresas de tecnología y despachos de servicios.",
+    source: "Diario Oficial de la Federación",
+    date: "Septiembre 2026",
+    title: "Deducción de infraestructura tecnológica",
+    summary:
+      "Porcentaje de depreciación acelerada hasta del 50% en el primer ejercicio para software e infraestructura digital.",
+    impact: "PyMEs y empresas de servicios profesionales.",
   },
   {
     id: "3",
     source: "Criterio No Vinculativo SAT",
-    badge: "Alerta de Riesgo",
-    date: "05 Septiembre 2026",
-    title: "Intensificación de revisiones electrónicas sobre retenciones de IVA",
-    aiSummary:
-      "La autoridad fiscal auditará discrepancias automáticas entre el CFDI emitido por servicios profesionales y el entero oportuno de retenciones de dos terceras partes de IVA por parte de personas morales.",
-    impact: "Indispensable conciliar nóminas y honorarios antes del día 17 de cada mes.",
+    date: "Septiembre 2026",
+    title: "Conciliación mensual de retenciones de IVA",
+    summary:
+      "Auditorías automáticas sobre retenciones de dos terceras partes entre CFDI emitidos y declaraciones presentadas.",
+    impact: "Personas morales que contratan profesionistas.",
   },
 ];
 
 type CalcTab = "facturacion" | "nomina" | "amortizacion" | "ratios";
-type BookingType = "MEET" | "PRESENCIAL";
+
+// Datos de demostración de facturas para la Bóveda / Parser
+const initialInvoices: ParsedCFDI[] = [
+  {
+    uuid: "4A8B2C10-9E3F-4D21-884A-91C0DE21034A",
+    serie: "A",
+    folio: "1082",
+    fecha: "2026-09-18T14:32:00",
+    emisorRfc: "VAZ840912K89",
+    emisorNombre: "Vázquez Consultoría Fiscal S.C.",
+    receptorRfc: "TEC190820NA3",
+    receptorNombre: "Tecnología y Sistemas México S.A. de C.V.",
+    tipoDeComprobante: "Ingreso",
+    subtotal: 45000,
+    ivaTrasladado: 7200,
+    ivaRetenido: 4800,
+    total: 47400,
+    moneda: "MXN",
+    conceptosCount: 1,
+  },
+  {
+    uuid: "9F1E2A3B-8C7D-4F5E-90AB-123456789ABC",
+    serie: "F",
+    folio: "450",
+    fecha: "2026-09-12T10:15:00",
+    emisorRfc: "DIG180315PL2",
+    emisorNombre: "Digital Cloud Services S. de R.L.",
+    receptorRfc: "VAZ840912K89",
+    receptorNombre: "Vázquez Consultoría Fiscal S.C.",
+    tipoDeComprobante: "Ingreso",
+    subtotal: 12500,
+    ivaTrasladado: 2000,
+    total: 14500,
+    moneda: "MXN",
+    conceptosCount: 2,
+  },
+];
 
 export default function HomePage() {
-  // Pestañas del Motor de Cálculo
+  // Calculadora
   const [calcTab, setCalcTab] = useState<CalcTab>("facturacion");
-
-  // Estado Calculadora 1: Facturación
-  const [subtotalInput, setSubtotalInput] = useState<number>(45000);
+  const [subtotalInput, setSubtotalInput] = useState<number>(50000);
   const [regime, setRegime] = useState<"RESICO" | "HONORARIOS_GENERAL">("RESICO");
   const [clientType, setClientType] = useState<"PERSONA_MORAL" | "PERSONA_FISICA">("PERSONA_MORAL");
-
-  // Estado Calculadora 2: Nómina
-  const [grossSalaryInput, setGrossSalaryInput] = useState<number>(30000);
-
-  // Estado Calculadora 3: Amortización
+  const [grossSalaryInput, setGrossSalaryInput] = useState<number>(32000);
   const [loanPrincipal, setLoanPrincipal] = useState<number>(200000);
-  const [loanRate, setLoanRate] = useState<number>(14.5);
+  const [loanRate, setLoanRate] = useState<number>(14);
   const [loanMonths, setLoanMonths] = useState<number>(24);
+  const [currentAssets, setCurrentAssets] = useState<number>(600000);
+  const [currentLiabilities, setCurrentLiabilities] = useState<number>(250000);
+  const [inventory, setInventory] = useState<number>(100000);
+  const [totalDebt, setTotalDebt] = useState<number>(350000);
+  const [totalEquity, setTotalEquity] = useState<number>(800000);
+  const [netIncome, setNetIncome] = useState<number>(180000);
+  const [totalRevenue, setTotalRevenue] = useState<number>(1100000);
 
-  // Estado Calculadora 4: Ratios Financieros
-  const [currentAssets, setCurrentAssets] = useState<number>(650000);
-  const [currentLiabilities, setCurrentLiabilities] = useState<number>(280000);
-  const [inventory, setInventory] = useState<number>(120000);
-  const [totalDebt, setTotalDebt] = useState<number>(400000);
-  const [totalEquity, setTotalEquity] = useState<number>(850000);
-  const [netIncome, setNetIncome] = useState<number>(185000);
-  const [totalRevenue, setTotalRevenue] = useState<number>(1200000);
+  // Módulo de Facturas CFDI (Fase 1 - Paso a paso)
+  const [invoices, setInvoices] = useState<ParsedCFDI[]>(initialInvoices);
+  const [dragOver, setDragOver] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
 
-  // Estado del Asistente Virtual / Chatbot
+  // Asistente Virtual
   const [chatMessages, setChatMessages] = useState<
     Array<{ sender: "bot" | "user"; text: string; action?: string }>
   >([
     {
       sender: "bot",
-      text: "Bienvenido a Vázquez & Asociados. Soy su Asistente Fiscal Virtual. Para diagnosticar su situación y recomendarle la mejor estrategia, ¿cuál es su perfil fiscal?",
+      text: "Bienvenido. ¿Qué perfil tributario desea consultar hoy (RESICO, Persona Moral, o regularización de CFDI)?",
     },
   ]);
-  const [chatInput, setChatInput] = useState<string>("");
+  const [chatInput, setChatInput] = useState("");
 
-  // Estado de Agendamiento
-  const [bookingDate, setBookingDate] = useState<string>("2026-09-28");
-  const [bookingTime, setBookingTime] = useState<string>("11:00 AM");
-  const [bookingType, setBookingType] = useState<BookingType>("MEET");
-  const [bookingService, setBookingService] = useState<string>("Diagnóstico Fiscal de Alta Riqueza / PyME");
-  const [clientName, setClientName] = useState<string>("");
-  const [clientEmail, setClientEmail] = useState<string>("");
-  const [clientPhone, setClientPhone] = useState<string>("");
-  const [bookingConfirmed, setBookingConfirmed] = useState<boolean>(false);
+  // Agendamiento
+  const [clientName, setClientName] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
+  const [bookingDate, setBookingDate] = useState("2026-09-28");
+  const [bookingTime, setBookingTime] = useState("11:00 AM");
+  const [bookingService, setBookingService] = useState("Diagnóstico Fiscal Estratégico");
+  const [bookingConfirmed, setBookingConfirmed] = useState(false);
 
-  // Estado del Portal del Cliente (Demo)
-  const [portalTab, setPortalTab] = useState<"resumen" | "documentos">("resumen");
-  const [mockFiles, setMockFiles] = useState<Array<{ name: string; size: string; type: string; date: string }>>([
-    { name: "CFDI_Ingresos_Agosto2026.xml", size: "24 KB", type: "XML", date: "02/09/2026" },
-    { name: "Acuse_Declaracion_Agosto_2026.pdf", size: "480 KB", type: "PDF", date: "15/09/2026" },
-    { name: "Opinion_Cumplimiento_32D_Positiva.pdf", size: "190 KB", type: "PDF", date: "01/09/2026" },
-  ]);
-  const [uploadSuccess, setUploadSuccess] = useState<boolean>(false);
-
-  // Cálculos reactivos en tiempo real
+  // Cálculos
   const invoiceResult: InvoiceCalculationResult = useMemo(() => {
     return calculateInvoice({
       subtotal: Math.max(0, subtotalInput || 0),
@@ -152,448 +171,515 @@ export default function HomePage() {
     });
   }, [currentAssets, currentLiabilities, inventory, totalDebt, totalEquity, netIncome, totalRevenue]);
 
-  const formatMoney = (val: number) => {
-    return new Intl.NumberFormat("es-MX", {
+  const formatMoney = (val: number) =>
+    new Intl.NumberFormat("es-MX", {
       style: "currency",
       currency: "MXN",
       minimumFractionDigits: 2,
     }).format(val);
-  };
 
-  // Chatbot Triage Handler
-  const handleUserChatResponse = (userText: string) => {
-    const newMessages = [...chatMessages, { sender: "user" as const, text: userText }];
+  // Manejador del asistente
+  const handleUserChat = (text: string) => {
+    const updated = [...chatMessages, { sender: "user" as const, text }];
+    setChatMessages(updated);
+    setChatInput("");
 
     let reply = "";
     let actionBtn = "";
+    const lower = text.toLowerCase();
 
-    const lower = userText.toLowerCase();
-    if (lower.includes("freelancer") || lower.includes("resico") || lower.includes("honorarios")) {
+    if (lower.includes("resico") || lower.includes("freelance") || lower.includes("honorarios")) {
       reply =
-        "Excelente. Si recibes ingresos como freelancer o profesionista independiente, el Régimen Simplificado de Confianza (RESICO) te permite tributar entre el 1% y el 2.5% de ISR en lugar de hasta el 35%. ¿Tus ingresos anuales son menores a $3.5 MDP y deseas blindar tus retenciones de personas morales?";
-      actionBtn = "Agendar Diagnóstico RESICO";
-    } else if (lower.includes("empresa") || lower.includes("pyme") || lower.includes("moral")) {
+        "En RESICO tributa entre el 1% y el 2.5% de ISR sobre ingresos efectivamente cobrados (hasta $3.5 MDP anuales). Podemos estructurar sus CFDI para optimizar retenciones.";
+      actionBtn = "Agendar Diagnóstico";
+    } else if (lower.includes("empresa") || lower.includes("moral") || lower.includes("pyme")) {
       reply =
-        "Entendido. Para Personas Morales y PyMEs, nuestra firma audita la deducción de inversiones, nóminas timbradas CFDI 4.0 y conciliaciones bancarias para blindar la Opinión 32-D Positiva. ¿Deseas una revisión preventiva o contabilidad integral mensual?";
-      actionBtn = "Solicitar Propuesta PyME";
-    } else if (lower.includes("sat") || lower.includes("multa") || lower.includes("requerimiento")) {
+        "Para personas morales nos enfocamos en blindar deducciones, nóminas timbradas CFDI 4.0 y mantener la Opinión 32-D Positiva sin observaciones.";
+      actionBtn = "Solicitar Propuesta";
+    } else if (lower.includes("sat") || lower.includes("firma") || lower.includes("xml")) {
       reply =
-        "Atención prioritaria: Una notificación o requerimiento del SAT tiene plazos fatales de respuesta (generalmente 15 a 20 días hábiles). Nuestro equipo legal y contable puede interponer aclaraciones o medios de defensa antes de que congelen sellos digitales (CSD).";
-      actionBtn = "Contactar al Titular por WhatsApp Urgente";
+        "Nuestra plataforma soporta la lectura directa de CFDI 4.0 vía XML, y estamos preparando la sincronización con el Web Service del SAT mediante e.firma cifrada.";
+      actionBtn = "Ver Módulo CFDI";
     } else {
       reply =
-        "Comprendo su situación. De acuerdo con las disposiciones fiscales vigentes, cada caso requiere una revisión de su Constancia de Situación Fiscal y sus CFDI emitidos. Le sugerimos agendar una sesión privada o enviarnos un mensaje directo a WhatsApp para orientarle de inmediato.";
-      actionBtn = "Agendar Consulta Formal";
+        "Cada caso fiscal requiere una revisión individual de sus CFDI y situación en el padrón. Podemos agendar una consulta privada o atenderle por WhatsApp.";
+      actionBtn = "Agendar Asesoría";
     }
 
     setTimeout(() => {
-      setChatMessages((prev) => [
-        ...prev,
-        { sender: "bot" as const, text: reply, action: actionBtn },
-      ]);
-    }, 400);
-
-    setChatMessages(newMessages);
-    setChatInput("");
+      setChatMessages((prev) => [...prev, { sender: "bot" as const, text: reply, action: actionBtn }]);
+    }, 350);
   };
 
-  const handleBookingSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!clientName || !clientEmail) return;
-    setBookingConfirmed(true);
-  };
+  // Procesar archivos XML reales subidos
+  const processXmlFiles = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const xmlFiles = Array.from(files).filter((f) => f.name.toLowerCase().endsWith(".xml"));
 
-  const handleMockUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setMockFiles((prev) => [
-        {
-          name: file.name,
-          size: `${(file.size / 1024).toFixed(1)} KB`,
-          type: file.name.endsWith(".xml") ? "XML" : "PDF",
-          date: "Hoy",
-        },
-        ...prev,
-      ]);
-      setUploadSuccess(true);
-      setTimeout(() => setUploadSuccess(false), 3000);
+    if (xmlFiles.length === 0) {
+      setUploadStatus("Por favor sube archivos con extensión .xml (CFDI del SAT).");
+      setTimeout(() => setUploadStatus(null), 4000);
+      return;
     }
+
+    let parsedCount = 0;
+    xmlFiles.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        if (content) {
+          try {
+            const parsed = parseCFDIXml(content);
+            setInvoices((prev) => [parsed, ...prev.filter((i) => i.uuid !== parsed.uuid)]);
+            parsedCount++;
+            setUploadStatus(`Se procesaron ${parsedCount} factura(s) XML con éxito.`);
+            setTimeout(() => setUploadStatus(null), 5000);
+          } catch {
+            setUploadStatus("Error al interpretar el XML. Asegúrate de que sea un CFDI válido.");
+          }
+        }
+      };
+      reader.readAsText(file);
+    });
   };
 
   const whatsappUrl = `https://wa.me/${firm.whatsappNumber}?text=${encodeURIComponent(
-    "Hola Lic. Vázquez, visité su plataforma web y deseo agendar una sesión de asesoría fiscal personalizada."
+    "Hola Lic. Vázquez, visité su plataforma y deseo agendar una sesión de asesoría fiscal."
   )}`;
 
   return (
-    <div className="min-h-screen bg-[#0E1E33] text-slate-100 selection:bg-[#B8935F] selection:text-[#0E1E33]">
-      {/* Header Corporativo */}
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0E1E33]/95 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-3.5 gap-2">
-          <a href="#inicio" className="flex items-center gap-2.5 shrink-0 hover:opacity-90 transition-opacity">
-            <div className="flex h-10 w-10 items-center justify-center rounded-sm bg-gradient-to-br from-[#B8935F] to-[#8C6D3F] font-serif text-base font-bold text-[#0E1E33] shadow-md ring-1 ring-white/20">
+    <div className="min-h-screen bg-[#0A0C10] text-zinc-300 antialiased selection:bg-[#C5A880]/20 selection:text-zinc-100">
+      {/* Barra de navegación minimalista */}
+      <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#0A0C10]/85 backdrop-blur-md">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+          <Link href="/" className="flex items-center gap-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded border border-[#C5A880]/40 bg-[#C5A880]/10 font-mono text-xs font-semibold text-[#C5A880]">
               VA
-            </div>
+            </span>
             <div className="flex flex-col">
-              <span className="font-serif text-sm sm:text-base font-semibold tracking-wide text-white leading-tight">
-                Vázquez & Asociados
-              </span>
-              <span className="text-[10px] uppercase tracking-widest text-[#B8935F]">
-                Firma Contable & Fiscal
+              <span className="text-sm font-medium text-zinc-100">{firm.name}</span>
+              <span className="text-[10px] text-zinc-500 tracking-wider uppercase">
+                {firm.subname}
               </span>
             </div>
-          </a>
+          </Link>
 
-          <nav className="hidden items-center gap-3 xl:gap-5 text-[11px] xl:text-xs font-semibold uppercase tracking-wider text-slate-300 lg:flex whitespace-nowrap">
-            <a href="#inicio" className="transition-colors hover:text-[#B8935F]">
-              Inicio
+          <nav className="hidden md:flex items-center gap-6 text-xs text-zinc-400">
+            <a href="#facturas-sat" className="transition-colors hover:text-zinc-100">
+              Facturas & SAT
             </a>
-            <a href="#calculadoras" className="transition-colors hover:text-[#B8935F]">
-              Calculadoras
+            <a href="#calculadoras" className="transition-colors hover:text-zinc-100">
+              Simuladores
             </a>
-            <a href="#asistente" className="transition-colors hover:text-[#B8935F]">
-              Asistente IA
+            <a href="#asistente" className="transition-colors hover:text-zinc-100">
+              Asistente
             </a>
-            <a href="#newsfeed" className="transition-colors hover:text-[#B8935F]">
-              Noticias DOF/SAT
+            <a href="#noticias" className="transition-colors hover:text-zinc-100">
+              Actualizaciones
             </a>
-            <a href="#agendamiento" className="transition-colors hover:text-[#B8935F]">
-              Agendar Cita
-            </a>
-            <a href="#portal" className="transition-colors hover:text-[#B8935F]">
-              Portal Clientes
-            </a>
-            <a
-              href="/accountant"
-              className="rounded-sm border border-white/20 px-2.5 py-1 text-[11px] text-[#B8935F] hover:border-[#B8935F] hover:bg-[#B8935F]/10"
-            >
-              Portal Interno
+            <a href="#agendamiento" className="transition-colors hover:text-zinc-100">
+              Contacto
             </a>
           </nav>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden rounded-sm border border-[#B8935F] px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-[#B8935F] transition-all hover:bg-[#B8935F] hover:text-[#0E1E33] sm:inline-flex whitespace-nowrap"
+          <div className="flex items-center gap-3">
+            <Link
+              href="/login"
+              className="text-xs text-zinc-400 transition-colors hover:text-zinc-200"
             >
-              WhatsApp
-            </a>
+              Acceso
+            </Link>
             <a
               href="#agendamiento"
-              className="rounded-sm bg-[#B8935F] px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-[#0E1E33] shadow transition-all hover:bg-[#c9a773] whitespace-nowrap"
+              className="rounded-full border border-white/[0.12] bg-zinc-900/90 px-3.5 py-1.5 text-xs font-medium text-zinc-100 transition-all hover:border-[#C5A880]/60 hover:bg-[#C5A880]/10"
             >
-              Reservar Cita
+              Agendar Cita
             </a>
           </div>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section id="inicio" className="scroll-mt-24 relative overflow-hidden border-b border-white/10 py-16 lg:py-24">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#1B3454] via-[#0E1E33] to-[#081220] opacity-80"></div>
-        <div className="relative mx-auto max-w-7xl px-6 lg:px-10">
-          <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-12">
-            <div className="lg:col-span-7">
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#B8935F]/40 bg-[#12233B] px-3.5 py-1.5 text-xs text-[#B8935F]">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span>
-                <span>Firma Certificada ante el Instituto Mexicano de Contadores Públicos</span>
-              </div>
-              <h1 className="font-serif text-4xl font-normal leading-tight text-white sm:text-5xl lg:text-6xl">
-                Contabilidad con la precisión de un{" "}
-                <span className="italic text-[#B8935F]">oficio riguroso</span>, no
-                de una plantilla genérica.
-              </h1>
-              <p className="mt-6 max-w-2xl text-base text-slate-300 sm:text-lg leading-relaxed">
-                Protegemos y potenciamos el patrimonio financiero de personas físicas y empresas en México. Estrategias fiscales de vanguardia, cumplimiento irrefutable ante el SAT y atención directa de socio a cliente.
-              </p>
+      {/* Hero Section Minimalista */}
+      <section className="relative overflow-hidden py-20 md:py-28">
+        <div className="mx-auto max-w-4xl px-6 text-center">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-zinc-900/60 px-3 py-1 text-xs text-zinc-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            <span>Consultoría Fiscal & Contable Certificada</span>
+          </div>
 
-              {/* Credenciales y Cédula Profesional */}
-              <div className="mt-8 flex flex-wrap items-center gap-4 rounded-sm border border-white/10 bg-[#12233B]/60 p-4 text-xs text-slate-300 backdrop-blur-sm">
-                <div className="flex items-center gap-2">
-                  <span className="rounded bg-[#B8935F]/20 px-2 py-0.5 font-serif font-bold text-[#B8935F]">
-                    CPC
-                  </span>
-                  <span className="font-medium text-white">{firm.credentials}</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-400">
-                  <span className="h-1 w-1 rounded-full bg-[#B8935F]"></span>
-                  <span>{firm.specialty}</span>
-                </div>
-              </div>
+          <h1 className="mt-3 text-4xl font-normal tracking-tight text-zinc-100 sm:text-5xl md:text-6xl">
+            Precisión contable con criterio humano.
+          </h1>
 
-              <div className="mt-8 flex flex-wrap gap-4">
-                <a
-                  href="#agendamiento"
-                  className="rounded-sm bg-[#B8935F] px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-[#0E1E33] shadow-xl transition-all hover:bg-[#c9a773]"
-                >
-                  Agendar Consulta de Diagnóstico
-                </a>
-                <a
-                  href="#calculadoras"
-                  className="rounded-sm border border-white/20 bg-[#12233B] px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-200 transition-all hover:border-[#B8935F] hover:text-white"
-                >
-                  Abrir Calculadoras Fiscales
-                </a>
-                <a
-                  href={whatsappUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="rounded-sm border border-emerald-500/50 bg-emerald-950/30 px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-emerald-300 transition-all hover:bg-emerald-900/50"
-                >
-                  WhatsApp Inmediato
-                </a>
-              </div>
+          <p className="mx-auto mt-6 max-w-2xl text-base text-zinc-400 leading-relaxed sm:text-lg">
+            Acompañamiento fiscal estratégico para personas físicas, freelancers y empresas en
+            expansión. Simplificamos tus obligaciones ante el SAT con rigor y transparencia.
+          </p>
+
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <a
+              href="#facturas-sat"
+              className="rounded-full bg-zinc-100 px-5 py-2.5 text-xs font-semibold text-zinc-950 transition-all hover:bg-white hover:shadow-sm"
+            >
+              Explorar Módulo CFDI / SAT
+            </a>
+            <a
+              href="#calculadoras"
+              className="rounded-full border border-white/[0.12] bg-zinc-900/80 px-5 py-2.5 text-xs font-medium text-zinc-300 transition-all hover:border-white/[0.25] hover:text-white"
+            >
+              Simulador de Impuestos
+            </a>
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-full border border-emerald-500/20 bg-emerald-500/5 px-5 py-2.5 text-xs font-medium text-emerald-400 transition-all hover:bg-emerald-500/10"
+            >
+              WhatsApp Directo
+            </a>
+          </div>
+
+          {/* Métricas clave limpias */}
+          <div className="mt-16 grid grid-cols-1 gap-6 border-t border-white/[0.06] pt-10 sm:grid-cols-3 text-left">
+            <div>
+              <div className="text-xs text-zinc-500">Garantía Tributaria</div>
+              <div className="mt-1 text-base font-medium text-zinc-200">Opinión 32-D Positiva</div>
+              <div className="text-xs text-zinc-500 mt-0.5">Monitoreo continuo de cumplimiento</div>
             </div>
-
-            {/* Tarjeta Visual de Autoridad & Cumplimiento */}
-            <div className="lg:col-span-5">
-              <div className="rounded-sm border border-[#B8935F]/40 bg-gradient-to-b from-[#162945] to-[#0E1E33] p-8 shadow-2xl ring-1 ring-white/10">
-                <div className="flex items-center gap-4 border-b border-white/10 pb-6">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#B8935F] bg-[#0E1E33] font-serif text-2xl font-bold text-[#B8935F]">
-                    AV
-                  </div>
-                  <div>
-                    <h3 className="font-serif text-xl font-bold text-white">
-                      {firm.counterName}
-                    </h3>
-                    <p className="text-xs uppercase tracking-wider text-[#B8935F]">
-                      Socio Director Fiscal
-                    </p>
-                    <p className="text-xs text-slate-400">14+ años de práctica contable y litigio fiscal</p>
-                  </div>
-                </div>
-
-                <div className="mt-6 space-y-3.5 text-xs text-slate-300">
-                  <div className="flex items-start gap-3">
-                    <span className="text-[#B8935F] font-bold">✓</span>
-                    <span>Revisión exhaustiva mensual CFDI 4.0 por contador titular.</span>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <span className="text-[#B8935F] font-bold">✓</span>
-                    <span>Blindaje contra discrepancia fiscal y auditorías del SAT.</span>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <span className="text-[#B8935F] font-bold">✓</span>
-                    <span>Opinión de Cumplimiento 32-D siempre en estado Positivo.</span>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <span className="text-[#B8935F] font-bold">✓</span>
-                    <span>Respuesta ejecutiva garantizada en menos de 15 minutos.</span>
-                  </div>
-                </div>
-
-                <div className="mt-8 grid grid-cols-2 gap-4 rounded-sm border border-white/5 bg-[#0A1626] p-4">
-                  <div>
-                    <span className="text-[10px] uppercase text-slate-400">Garantía SAT</span>
-                    <p className="font-mono text-xs font-semibold text-emerald-400">32-D Positiva</p>
-                  </div>
-                  <div>
-                    <span className="text-[10px] uppercase text-slate-400">Cédula Federal</span>
-                    <p className="font-mono text-xs font-semibold text-[#B8935F]">SEP 8492019</p>
-                  </div>
-                </div>
-              </div>
+            <div>
+              <div className="text-xs text-zinc-500">Tecnología Fiscal</div>
+              <div className="mt-1 text-base font-medium text-zinc-200">CFDI 4.0 & SAT Sync</div>
+              <div className="text-xs text-zinc-500 mt-0.5">Lectura de XMLs y conciliaciones</div>
+            </div>
+            <div>
+              <div className="text-xs text-zinc-500">Socio Titular</div>
+              <div className="mt-1 text-base font-medium text-zinc-200">{firm.counterName}</div>
+              <div className="text-xs text-zinc-500 mt-0.5">{firm.credentials}</div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* MOTOR DE CÁLCULO AVANZADO (Público / Nivel Software Contable) */}
-      <section id="calculadoras" className="scroll-mt-24 border-b border-white/10 bg-[#0B1830] py-16 lg:py-20">
-        <div className="mx-auto max-w-7xl px-6 lg:px-10">
-          <div className="mx-auto max-w-3xl text-center">
-            <span className="text-xs font-semibold uppercase tracking-widest text-[#B8935F]">
-              Precisión Contable & Algoritmos Financieros 2026
-            </span>
-            <h2 className="mt-2 font-serif text-3xl text-white sm:text-4xl">
-              Motor de Simulación Fiscal & Financiera
-            </h2>
-            <p className="mt-3 text-sm text-slate-300">
-              Módulo de cálculo de alta precisión comparable a los sistemas ERP corporativos. Simule en tiempo real facturación, nómina, amortización de deudas o ratios de liquidez empresarial.
+      {/* SECCIÓN: MÓDULO CFDI & CONEXIÓN SAT (Fase 1 - Paso a paso) */}
+      <section id="facturas-sat" className="border-t border-white/[0.06] py-16 md:py-24">
+        <div className="mx-auto max-w-6xl px-6">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-10">
+            <div>
+              <span className="text-xs uppercase tracking-widest text-[#C5A880]">
+                Paso a Paso · Fase 1
+              </span>
+              <h2 className="mt-1 text-2xl font-normal text-zinc-100 sm:text-3xl">
+                Bóveda de Facturas & Conexión SAT
+              </h2>
+              <p className="mt-2 text-xs text-zinc-400 max-w-xl">
+                Carga y lectura inmediata de archivos XML (CFDI 4.0/3.3). Sin intermediarios ni riesgo
+                para tus contraseñas fiscales.
+              </p>
+            </div>
+
+            {/* Estado del roadmap SAT */}
+            <div className="flex flex-col items-start md:items-end gap-1.5">
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] text-emerald-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                <span>Fase 1: Lector XML Activo</span>
+              </div>
+              <span className="text-[11px] text-zinc-500">
+                Fase 2: Conexión Web Service e.firma (En desarrollo)
+              </span>
+            </div>
+          </div>
+
+          {/* Zona Drag & Drop para XML */}
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              processXmlFiles(e.dataTransfer.files);
+            }}
+            className={`relative rounded-xl border border-dashed p-8 text-center transition-all ${
+              dragOver
+                ? "border-[#C5A880] bg-[#C5A880]/5"
+                : "border-white/[0.12] bg-zinc-900/30 hover:border-white/[0.2] hover:bg-zinc-900/50"
+            }`}
+          >
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-white/[0.08] bg-zinc-900 text-zinc-400">
+              📄
+            </div>
+            <h3 className="mt-4 text-sm font-medium text-zinc-200">
+              Arrastra tus facturas XML aquí o selecciónalas
+            </h3>
+            <p className="mt-1 text-xs text-zinc-500">
+              Admite comprobantes emitidos y recibidos (CFDI 4.0 / 3.3). Los datos se extraen de forma segura en tu navegador.
             </p>
+
+            <label className="mt-4 inline-block cursor-pointer rounded-lg border border-white/[0.1] bg-zinc-800/80 px-4 py-2 text-xs font-medium text-zinc-200 hover:bg-zinc-800">
+              Seleccionar archivos .XML
+              <input
+                type="file"
+                multiple
+                accept=".xml"
+                onChange={(e) => processXmlFiles(e.target.files)}
+                className="hidden"
+              />
+            </label>
+
+            {uploadStatus && (
+              <div className="mt-4 text-xs font-medium text-emerald-400 animate-fade-in">
+                {uploadStatus}
+              </div>
+            )}
           </div>
 
-          {/* Navegación de Pestañas del Motor */}
-          <div className="mt-10 flex flex-wrap justify-center gap-2 border-b border-white/10 pb-4">
-            {(
-              [
-                { id: "facturacion", label: "Facturación & Retenciones (CFDI 4.0)" },
-                { id: "nomina", label: "Simulador de Nómina (Bruto a Neto)" },
-                { id: "amortizacion", label: "Amortización de Préstamos" },
-                { id: "ratios", label: "Razones Financieras (Empresas)" },
-              ] as const
-            ).map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setCalcTab(tab.id)}
-                className={`rounded-sm px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all ${
-                  calcTab === tab.id
-                    ? "bg-[#B8935F] text-[#0E1E33] shadow-md"
-                    : "border border-white/10 bg-[#12233B] text-slate-300 hover:text-white"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+          {/* Tabla de Facturas Procesadas */}
+          <div className="mt-8 overflow-hidden rounded-xl border border-white/[0.06] bg-zinc-900/40">
+            <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
+              <span className="text-xs font-medium text-zinc-300">
+                Facturas Registradas ({invoices.length})
+              </span>
+              <span className="text-[11px] text-zinc-500">
+                Total acumulado:{" "}
+                <strong className="text-zinc-200 font-mono">
+                  {formatMoney(invoices.reduce((sum, i) => sum + i.total, 0))}
+                </strong>
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-white/[0.04] text-zinc-500 font-normal">
+                    <th className="px-5 py-3 font-medium">Emisor / Receptor</th>
+                    <th className="px-4 py-3 font-medium">UUID / Folio</th>
+                    <th className="px-4 py-3 font-medium">Fecha</th>
+                    <th className="px-4 py-3 font-medium">Tipo</th>
+                    <th className="px-4 py-3 text-right font-medium">Subtotal</th>
+                    <th className="px-4 py-3 text-right font-medium">IVA</th>
+                    <th className="px-5 py-3 text-right font-medium">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.04]">
+                  {invoices.map((inv) => (
+                    <tr key={inv.uuid} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="px-5 py-3.5">
+                        <div className="font-medium text-zinc-200">{inv.receptorNombre}</div>
+                        <div className="text-[11px] text-zinc-500 font-mono">
+                          De: {inv.emisorRfc} → A: {inv.receptorRfc}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5 font-mono text-[11px] text-zinc-400">
+                        <div>
+                          {inv.serie ? `${inv.serie}-` : ""}
+                          {inv.folio || "S/F"}
+                        </div>
+                        <div className="text-[10px] text-zinc-600 truncate max-w-[140px]">
+                          {inv.uuid}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5 text-zinc-400 whitespace-nowrap">
+                        {inv.fecha.slice(0, 10)}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className="rounded bg-zinc-800/80 px-2 py-0.5 text-[10px] text-zinc-300">
+                          {inv.tipoDeComprobante}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 text-right font-mono text-zinc-300">
+                        {formatMoney(inv.subtotal)}
+                      </td>
+                      <td className="px-4 py-3.5 text-right font-mono text-zinc-400">
+                        {formatMoney(inv.ivaTrasladado || 0)}
+                      </td>
+                      <td className="px-5 py-3.5 text-right font-mono font-medium text-zinc-100">
+                        {formatMoney(inv.total)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* SECCIÓN: SIMULADOR FISCAL MINIMALISTA */}
+      <section id="calculadoras" className="border-t border-white/[0.06] py-16 md:py-24">
+        <div className="mx-auto max-w-5xl px-6">
+          <div className="text-center mb-10">
+            <span className="text-xs uppercase tracking-widest text-[#C5A880]">
+              Cálculo en Tiempo Real
+            </span>
+            <h2 className="mt-1 text-2xl font-normal text-zinc-100 sm:text-3xl">
+              Simulador Fiscal & Financiero
+            </h2>
+            <p className="mt-2 text-xs text-zinc-400">
+              Modelado fiscal según la legislación mexicana vigente (LISR, LIVA y CFF 2026).
+            </p>
+
+            {/* Pestañas minimalistas */}
+            <div className="mt-6 inline-flex rounded-lg border border-white/[0.08] bg-zinc-900/60 p-1">
+              {(
+                [
+                  { id: "facturacion", label: "Facturación (CFDI 4.0)" },
+                  { id: "nomina", label: "Nómina (Bruto a Neto)" },
+                  { id: "amortizacion", label: "Préstamos" },
+                  { id: "ratios", label: "Razones Financieras" },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setCalcTab(tab.id)}
+                  className={`rounded-md px-3.5 py-1.5 text-xs font-medium transition-all ${
+                    calcTab === tab.id
+                      ? "bg-zinc-800 text-zinc-100 shadow-sm"
+                      : "text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* TAB 1: Facturación y Retenciones */}
+          {/* TAB 1: Facturación */}
           {calcTab === "facturacion" && (
-            <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-12">
-              <div className="rounded-sm border border-white/10 bg-[#12233B] p-6 lg:col-span-6">
-                <h3 className="border-b border-white/10 pb-3 font-serif text-lg text-white">
-                  Parámetros de Emisión de Factura
-                </h3>
-                <div className="mt-6 space-y-6">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
-                      Importe Subtotal Deseado (Antes de IVA)
-                    </label>
-                    <div className="relative mt-2">
-                      <span className="absolute left-3 top-2.5 text-slate-400">$</span>
-                      <input
-                        type="number"
-                        value={subtotalInput}
-                        onChange={(e) => setSubtotalInput(Number(e.target.value))}
-                        className="w-full rounded-sm border border-white/10 bg-[#0E1E33] py-2.5 pl-8 pr-4 text-white focus:border-[#B8935F] focus:outline-none"
-                      />
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {[15000, 35000, 60000, 120000, 250000].map((val) => (
-                        <button
-                          key={val}
-                          type="button"
-                          onClick={() => setSubtotalInput(val)}
-                          className="rounded-sm border border-white/5 bg-[#0E1E33] px-2.5 py-1 text-xs text-slate-300 hover:text-[#B8935F]"
-                        >
-                          ${val.toLocaleString()}
-                        </button>
-                      ))}
-                    </div>
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <div className="rounded-xl border border-white/[0.06] bg-zinc-900/40 p-6 space-y-5">
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-1.5">
+                    Subtotal del Servicio (MXN)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-xs text-zinc-500">$</span>
+                    <input
+                      type="number"
+                      value={subtotalInput}
+                      onChange={(e) => setSubtotalInput(Number(e.target.value))}
+                      className="w-full rounded-lg border border-white/[0.08] bg-zinc-950 py-2 pl-7 pr-3 text-xs text-zinc-100 focus:border-[#C5A880] focus:outline-none"
+                    />
                   </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
-                      Régimen Fiscal del Prestador de Servicios
-                    </label>
-                    <div className="grid grid-cols-2 gap-3">
+                  <div className="mt-2 flex gap-1.5">
+                    {[15000, 35000, 60000, 120000].map((val) => (
                       <button
+                        key={val}
                         type="button"
-                        onClick={() => setRegime("RESICO")}
-                        className={`rounded-sm border p-3 text-left transition-all ${
-                          regime === "RESICO"
-                            ? "border-[#B8935F] bg-[#0E1E33] text-white"
-                            : "border-white/10 bg-[#0E1E33]/40 text-slate-400 hover:border-white/20"
-                        }`}
+                        onClick={() => setSubtotalInput(val)}
+                        className="rounded border border-white/[0.06] bg-zinc-900 px-2 py-0.5 text-[11px] text-zinc-400 hover:text-zinc-200"
                       >
-                        <div className="font-semibold text-sm">RESICO</div>
-                        <div className="text-[11px] text-slate-400">Tasa reducida 1% a 2.5%</div>
+                        ${val.toLocaleString()}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setRegime("HONORARIOS_GENERAL")}
-                        className={`rounded-sm border p-3 text-left transition-all ${
-                          regime === "HONORARIOS_GENERAL"
-                            ? "border-[#B8935F] bg-[#0E1E33] text-white"
-                            : "border-white/10 bg-[#0E1E33]/40 text-slate-400 hover:border-white/20"
-                        }`}
-                      >
-                        <div className="font-semibold text-sm">Honorarios General</div>
-                        <div className="text-[11px] text-slate-400">Tarifa progresiva hasta 35%</div>
-                      </button>
-                    </div>
+                    ))}
                   </div>
+                </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
-                      Receptor de la Factura (Tu Cliente)
-                    </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setClientType("PERSONA_MORAL")}
-                        className={`rounded-sm border p-3 text-left transition-all ${
-                          clientType === "PERSONA_MORAL"
-                            ? "border-[#B8935F] bg-[#0E1E33] text-white"
-                            : "border-white/10 bg-[#0E1E33]/40 text-slate-400 hover:border-white/20"
-                        }`}
-                      >
-                        <div className="font-semibold text-sm">Persona Moral (Empresa)</div>
-                        <div className="text-[11px] text-slate-400">Aplica retención de ley</div>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setClientType("PERSONA_FISICA")}
-                        className={`rounded-sm border p-3 text-left transition-all ${
-                          clientType === "PERSONA_FISICA"
-                            ? "border-[#B8935F] bg-[#0E1E33] text-white"
-                            : "border-white/10 bg-[#0E1E33]/40 text-slate-400 hover:border-white/20"
-                        }`}
-                      >
-                        <div className="font-semibold text-sm">Persona Física</div>
-                        <div className="text-[11px] text-slate-400">Sin retenciones directas</div>
-                      </button>
-                    </div>
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-1.5">Régimen Fiscal</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRegime("RESICO")}
+                      className={`rounded-lg border p-3 text-left transition-all ${
+                        regime === "RESICO"
+                          ? "border-[#C5A880]/60 bg-[#C5A880]/5 text-zinc-100"
+                          : "border-white/[0.06] bg-zinc-950/60 text-zinc-400 hover:border-white/[0.12]"
+                      }`}
+                    >
+                      <div className="text-xs font-medium">RESICO</div>
+                      <div className="text-[10px] text-zinc-500">Tasa reducida 1% a 2.5%</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRegime("HONORARIOS_GENERAL")}
+                      className={`rounded-lg border p-3 text-left transition-all ${
+                        regime === "HONORARIOS_GENERAL"
+                          ? "border-[#C5A880]/60 bg-[#C5A880]/5 text-zinc-100"
+                          : "border-white/[0.06] bg-zinc-950/60 text-zinc-400 hover:border-white/[0.12]"
+                      }`}
+                    >
+                      <div className="text-xs font-medium">Régimen General</div>
+                      <div className="text-[10px] text-zinc-500">Tarifa progresiva (hasta 35%)</div>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-1.5">Tu Cliente</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setClientType("PERSONA_MORAL")}
+                      className={`rounded-lg border p-3 text-left transition-all ${
+                        clientType === "PERSONA_MORAL"
+                          ? "border-[#C5A880]/60 bg-[#C5A880]/5 text-zinc-100"
+                          : "border-white/[0.06] bg-zinc-950/60 text-zinc-400 hover:border-white/[0.12]"
+                      }`}
+                    >
+                      <div className="text-xs font-medium">Persona Moral</div>
+                      <div className="text-[10px] text-zinc-500">Aplica retenciones de ley</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setClientType("PERSONA_FISICA")}
+                      className={`rounded-lg border p-3 text-left transition-all ${
+                        clientType === "PERSONA_FISICA"
+                          ? "border-[#C5A880]/60 bg-[#C5A880]/5 text-zinc-100"
+                          : "border-white/[0.06] bg-zinc-950/60 text-zinc-400 hover:border-white/[0.12]"
+                      }`}
+                    >
+                      <div className="text-xs font-medium">Persona Física</div>
+                      <div className="text-[10px] text-zinc-500">Sin retención directa</div>
+                    </button>
                   </div>
                 </div>
               </div>
 
-              {/* Resultado Facturación */}
-              <div className="flex flex-col justify-between rounded-sm border border-[#B8935F]/40 bg-[#12233B] p-6 lg:col-span-6">
+              {/* Resumen Facturación */}
+              <div className="flex flex-col justify-between rounded-xl border border-white/[0.06] bg-zinc-900/40 p-6">
                 <div>
-                  <h3 className="flex items-center justify-between border-b border-white/10 pb-3 font-serif text-lg text-white">
-                    <span>Desglose Fiscal de Facturación</span>
-                    <span className="font-mono text-xs text-[#B8935F]">CFDI 4.0</span>
+                  <h3 className="text-xs uppercase tracking-wider text-zinc-400 border-b border-white/[0.06] pb-3">
+                    Desglose Fiscal
                   </h3>
-                  <div className="mt-4 space-y-3 text-sm">
-                    <div className="flex justify-between py-1 text-slate-300">
+
+                  <div className="mt-4 space-y-2.5 text-xs">
+                    <div className="flex justify-between text-zinc-300">
                       <span>Subtotal</span>
-                      <span className="font-mono font-medium text-white">
-                        {formatMoney(invoiceResult.subtotal)}
-                      </span>
+                      <span className="font-mono text-zinc-200">{formatMoney(invoiceResult.subtotal)}</span>
                     </div>
-                    <div className="flex justify-between py-1 text-slate-300">
+                    <div className="flex justify-between text-zinc-300">
                       <span>IVA Trasladado (16%)</span>
-                      <span className="font-mono font-medium text-white">
-                        {formatMoney(invoiceResult.iva)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between border-t border-white/10 py-1 font-semibold text-slate-200">
-                      <span>Total Bruto Facturado</span>
-                      <span className="font-mono">{formatMoney(invoiceResult.grossTotal)}</span>
+                      <span className="font-mono text-zinc-200">{formatMoney(invoiceResult.iva)}</span>
                     </div>
 
                     {invoiceResult.retainedIsr > 0 && (
-                      <div className="flex justify-between py-1 text-rose-400">
+                      <div className="flex justify-between text-rose-400">
                         <span>(-) Retención ISR {regime === "RESICO" ? "(1.25%)" : "(10%)"}</span>
-                        <span className="font-mono font-medium">
-                          -{formatMoney(invoiceResult.retainedIsr)}
-                        </span>
+                        <span className="font-mono">-{formatMoney(invoiceResult.retainedIsr)}</span>
                       </div>
                     )}
 
                     {invoiceResult.retainedIva > 0 && (
-                      <div className="flex justify-between py-1 text-rose-400">
-                        <span>(-) Retención IVA (2/3 partes = 10.6667%)</span>
-                        <span className="font-mono font-medium">
-                          -{formatMoney(invoiceResult.retainedIva)}
-                        </span>
+                      <div className="flex justify-between text-rose-400">
+                        <span>(-) Retención IVA (10.6667%)</span>
+                        <span className="font-mono">-{formatMoney(invoiceResult.retainedIva)}</span>
                       </div>
                     )}
                   </div>
 
-                  <div className="mt-6 rounded-sm border border-[#B8935F]/50 bg-[#0E1E33] p-5 shadow-inner">
-                    <div className="text-xs uppercase tracking-widest text-[#B8935F]">
-                      Neto Efectivo a Recibir en Cuenta Bancaria
+                  <div className="mt-6 rounded-lg border border-white/[0.08] bg-zinc-950/70 p-4">
+                    <div className="text-[11px] text-zinc-400 uppercase tracking-wider">
+                      Neto a Cobrar en Banco
                     </div>
-                    <div className="mt-1 font-mono text-3xl font-bold text-white">
+                    <div className="mt-1 font-mono text-2xl font-normal text-zinc-100">
                       {formatMoney(invoiceResult.netToReceive)}
                     </div>
-                    <div className="mt-2 text-xs text-slate-400">
-                      Estimación de ISR propio por pagar:{" "}
-                      <span className="font-semibold text-[#B8935F]">
+                    <div className="mt-2 text-[11px] text-zinc-500">
+                      Estimación ISR propio:{" "}
+                      <span className="text-[#C5A880]">
                         {formatMoney(invoiceResult.directEstimatedIsr)}
                       </span>
                     </div>
@@ -603,331 +689,244 @@ export default function HomePage() {
                 <div className="mt-6">
                   <a
                     href="#agendamiento"
-                    className="block w-full rounded-sm bg-[#B8935F] py-3 text-center text-xs font-bold uppercase tracking-wider text-[#0E1E33] shadow hover:bg-[#c9a773]"
+                    className="block w-full rounded-lg bg-zinc-100 py-2.5 text-center text-xs font-medium text-zinc-950 hover:bg-white transition-colors"
                   >
-                    Optimizar mi carga fiscal con una asesoría
+                    Consultar Estrategia para mi Caso
                   </a>
                 </div>
               </div>
             </div>
           )}
 
-          {/* TAB 2: Simulador de Nómina */}
+          {/* TAB 2: Nómina */}
           {calcTab === "nomina" && (
-            <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-12">
-              <div className="rounded-sm border border-white/10 bg-[#12233B] p-6 lg:col-span-6">
-                <h3 className="border-b border-white/10 pb-3 font-serif text-lg text-white">
-                  Cálculo de Sueldo Bruto a Neto
-                </h3>
-                <div className="mt-6 space-y-6">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
-                      Salario Mensual Bruto (MXN)
-                    </label>
-                    <div className="relative mt-2">
-                      <span className="absolute left-3 top-2.5 text-slate-400">$</span>
-                      <input
-                        type="number"
-                        value={grossSalaryInput}
-                        onChange={(e) => setGrossSalaryInput(Number(e.target.value))}
-                        className="w-full rounded-sm border border-white/10 bg-[#0E1E33] py-2.5 pl-8 pr-4 text-white focus:border-[#B8935F] focus:outline-none"
-                      />
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {[12000, 25000, 45000, 75000, 120000].map((val) => (
-                        <button
-                          key={val}
-                          type="button"
-                          onClick={() => setGrossSalaryInput(val)}
-                          className="rounded-sm border border-white/5 bg-[#0E1E33] px-2.5 py-1 text-xs text-slate-300 hover:text-[#B8935F]"
-                        >
-                          ${val.toLocaleString()}
-                        </button>
-                      ))}
-                    </div>
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <div className="rounded-xl border border-white/[0.06] bg-zinc-900/40 p-6 space-y-4">
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-1.5">
+                    Salario Mensual Bruto (MXN)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-xs text-zinc-500">$</span>
+                    <input
+                      type="number"
+                      value={grossSalaryInput}
+                      onChange={(e) => setGrossSalaryInput(Number(e.target.value))}
+                      className="w-full rounded-lg border border-white/[0.08] bg-zinc-950 py-2 pl-7 pr-3 text-xs text-zinc-100 focus:border-[#C5A880] focus:outline-none"
+                    />
                   </div>
-                  <p className="text-xs text-slate-400">
-                    Aplica tarifas progresivas del Impuesto Sobre la Renta (LISR Art. 96) y cuotas obreras al Instituto Mexicano del Seguro Social (IMSS).
-                  </p>
                 </div>
+                <p className="text-xs text-zinc-500 leading-relaxed">
+                  Aplica las tarifas progresivas del Art. 96 LISR y las cuotas obreras al IMSS vigentes.
+                </p>
               </div>
 
-              <div className="flex flex-col justify-between rounded-sm border border-[#B8935F]/40 bg-[#12233B] p-6 lg:col-span-6">
-                <div>
-                  <h3 className="border-b border-white/10 pb-3 font-serif text-lg text-white">
-                    Desglose de Percepciones y Deducciones
-                  </h3>
-                  <div className="mt-4 space-y-3 text-sm">
-                    <div className="flex justify-between py-1 text-slate-300">
-                      <span>Salario Bruto Pactado</span>
-                      <span className="font-mono font-medium text-white">
-                        {formatMoney(payrollResult.grossSalary)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between py-1 text-rose-400">
-                      <span>(-) ISR Retenido por Nómina (Tarifa Progresiva)</span>
-                      <span className="font-mono font-medium">
-                        -{formatMoney(payrollResult.isrRetained)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between py-1 text-rose-400">
-                      <span>(-) Cuota Obrera IMSS (~2.75%)</span>
-                      <span className="font-mono font-medium">
-                        -{formatMoney(payrollResult.imssWorkerFee)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between border-t border-white/10 py-1 text-slate-300">
-                      <span>Total de Deducciones Oficiales</span>
-                      <span className="font-mono font-semibold text-rose-400">
-                        -{formatMoney(payrollResult.totalDeductions)}
-                      </span>
-                    </div>
+              <div className="rounded-xl border border-white/[0.06] bg-zinc-900/40 p-6 flex flex-col justify-between">
+                <div className="space-y-2.5 text-xs">
+                  <div className="flex justify-between text-zinc-300">
+                    <span>Sueldo Bruto</span>
+                    <span className="font-mono text-zinc-200">{formatMoney(payrollResult.grossSalary)}</span>
+                  </div>
+                  <div className="flex justify-between text-rose-400">
+                    <span>(-) Retención ISR</span>
+                    <span className="font-mono">-{formatMoney(payrollResult.isrRetained)}</span>
+                  </div>
+                  <div className="flex justify-between text-rose-400">
+                    <span>(-) Cuota IMSS Obrero</span>
+                    <span className="font-mono">-{formatMoney(payrollResult.imssWorkerFee)}</span>
                   </div>
 
-                  <div className="mt-6 rounded-sm border border-[#B8935F]/50 bg-[#0E1E33] p-5 shadow-inner">
-                    <div className="text-xs uppercase tracking-widest text-[#B8935F]">
-                      Sueldo Neto Líquido Recibido por el Colaborador
+                  <div className="mt-4 rounded-lg border border-white/[0.08] bg-zinc-950/70 p-4">
+                    <div className="text-[11px] text-zinc-400 uppercase tracking-wider">
+                      Sueldo Líquido Recibido
                     </div>
-                    <div className="mt-1 font-mono text-3xl font-bold text-white">
+                    <div className="mt-1 font-mono text-2xl font-normal text-zinc-100">
                       {formatMoney(payrollResult.netSalary)}
                     </div>
-                    <div className="mt-2 text-xs text-slate-400">
-                      Tasa efectiva de retención global:{" "}
-                      <span className="font-semibold text-slate-200">
-                        {payrollResult.grossSalary > 0
-                          ? ((payrollResult.totalDeductions / payrollResult.grossSalary) * 100).toFixed(1)
-                          : 0}
-                        %
-                      </span>
-                    </div>
                   </div>
                 </div>
 
-                <div className="mt-6">
-                  <a
-                    href="#agendamiento"
-                    className="block w-full rounded-sm bg-[#B8935F] py-3 text-center text-xs font-bold uppercase tracking-wider text-[#0E1E33] shadow hover:bg-[#c9a773]"
-                  >
-                    Auditar o Maquilar Nóminas de mi Empresa
-                  </a>
-                </div>
+                <a
+                  href="#agendamiento"
+                  className="mt-6 block w-full rounded-lg bg-zinc-100 py-2.5 text-center text-xs font-medium text-zinc-950 hover:bg-white transition-colors"
+                >
+                  Asesoría en Nóminas y Cargas Patronales
+                </a>
               </div>
             </div>
           )}
 
-          {/* TAB 3: Amortización de Préstamos */}
+          {/* TAB 3: Préstamos */}
           {calcTab === "amortizacion" && (
-            <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-12">
-              <div className="rounded-sm border border-white/10 bg-[#12233B] p-6 lg:col-span-5">
-                <h3 className="border-b border-white/10 pb-3 font-serif text-lg text-white">
-                  Condiciones del Financiamiento
-                </h3>
-                <div className="mt-6 space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
-                      Monto del Préstamo (Capital)
-                    </label>
-                    <input
-                      type="number"
-                      value={loanPrincipal}
-                      onChange={(e) => setLoanPrincipal(Number(e.target.value))}
-                      className="mt-1 w-full rounded-sm border border-white/10 bg-[#0E1E33] px-3 py-2 text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
-                      Tasa de Interés Anual (%)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={loanRate}
-                      onChange={(e) => setLoanRate(Number(e.target.value))}
-                      className="mt-1 w-full rounded-sm border border-white/10 bg-[#0E1E33] px-3 py-2 text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
-                      Plazo (Meses)
-                    </label>
-                    <input
-                      type="number"
-                      value={loanMonths}
-                      onChange={(e) => setLoanMonths(Number(e.target.value))}
-                      className="mt-1 w-full rounded-sm border border-white/10 bg-[#0E1E33] px-3 py-2 text-white"
-                    />
-                  </div>
-                  <div className="rounded-sm bg-[#0E1E33] p-4 border border-white/5">
-                    <div className="text-xs text-slate-400">Cuota Mensual Fija (Sistema Francés)</div>
-                    <div className="font-mono text-2xl font-bold text-[#B8935F]">
-                      {formatMoney(amortizationSchedule[0]?.payment || 0)}
-                    </div>
-                  </div>
+            <div className="rounded-xl border border-white/[0.06] bg-zinc-900/40 p-6">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-6">
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-1">Monto (Capital)</label>
+                  <input
+                    type="number"
+                    value={loanPrincipal}
+                    onChange={(e) => setLoanPrincipal(Number(e.target.value))}
+                    className="w-full rounded-lg border border-white/[0.08] bg-zinc-950 p-2 text-xs text-zinc-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-1">Tasa Anual (%)</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={loanRate}
+                    onChange={(e) => setLoanRate(Number(e.target.value))}
+                    className="w-full rounded-lg border border-white/[0.08] bg-zinc-950 p-2 text-xs text-zinc-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-1">Plazo (Meses)</label>
+                  <input
+                    type="number"
+                    value={loanMonths}
+                    onChange={(e) => setLoanMonths(Number(e.target.value))}
+                    className="w-full rounded-lg border border-white/[0.08] bg-zinc-950 p-2 text-xs text-zinc-100"
+                  />
                 </div>
               </div>
 
-              <div className="rounded-sm border border-white/10 bg-[#12233B] p-6 lg:col-span-7">
-                <h3 className="border-b border-white/10 pb-3 font-serif text-lg text-white">
-                  Primeros 6 Meses de Amortización
-                </h3>
-                <div className="mt-4 overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-white/10 text-slate-400">
-                        <th className="py-2">Mes</th>
-                        <th className="py-2">Pago Total</th>
-                        <th className="py-2">Interés</th>
-                        <th className="py-2">Capital</th>
-                        <th className="py-2">Saldo Insoluto</th>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-white/[0.06] text-zinc-500">
+                      <th className="py-2">Mes</th>
+                      <th className="py-2">Pago Mensual</th>
+                      <th className="py-2">Interés</th>
+                      <th className="py-2">Capital</th>
+                      <th className="py-2">Saldo</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/[0.04] font-mono">
+                    {amortizationSchedule.slice(0, 6).map((row) => (
+                      <tr key={row.period}>
+                        <td className="py-2 text-zinc-300">{row.period}</td>
+                        <td className="py-2 text-zinc-200">{formatMoney(row.payment)}</td>
+                        <td className="py-2 text-rose-400">{formatMoney(row.interest)}</td>
+                        <td className="py-2 text-emerald-400">{formatMoney(row.principal)}</td>
+                        <td className="py-2 text-zinc-400">{formatMoney(row.remainingBalance)}</td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5 font-mono">
-                      {amortizationSchedule.slice(0, 6).map((row) => (
-                        <tr key={row.period} className="hover:bg-white/5">
-                          <td className="py-2 text-white font-bold">{row.period}</td>
-                          <td className="py-2">{formatMoney(row.payment)}</td>
-                          <td className="py-2 text-rose-400">{formatMoney(row.interest)}</td>
-                          <td className="py-2 text-emerald-400">{formatMoney(row.principal)}</td>
-                          <td className="py-2 text-slate-300">{formatMoney(row.remainingBalance)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
 
           {/* TAB 4: Razones Financieras */}
           {calcTab === "ratios" && (
-            <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-12">
-              <div className="rounded-sm border border-white/10 bg-[#12233B] p-6 lg:col-span-6">
-                <h3 className="border-b border-white/10 pb-3 font-serif text-lg text-white">
-                  Variables de Balance y Estado de Resultados
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
+              <div className="rounded-xl border border-white/[0.06] bg-zinc-900/40 p-5 md:col-span-6 space-y-3">
+                <h3 className="text-xs uppercase tracking-wider text-zinc-400 border-b border-white/[0.06] pb-2">
+                  Variables Financieras
                 </h3>
-                <div className="mt-4 grid grid-cols-2 gap-4 text-xs">
+                <div className="grid grid-cols-2 gap-3 text-xs">
                   <div>
-                    <label className="block text-slate-300">Activo Circulante</label>
+                    <label className="block text-zinc-400 text-[11px] mb-1">Activo Circulante</label>
                     <input
                       type="number"
                       value={currentAssets}
                       onChange={(e) => setCurrentAssets(Number(e.target.value))}
-                      className="mt-1 w-full rounded bg-[#0E1E33] p-2 text-white border border-white/10"
+                      className="w-full rounded-lg border border-white/[0.08] bg-zinc-950 p-2 text-zinc-100"
                     />
                   </div>
                   <div>
-                    <label className="block text-slate-300">Pasivo a Corto Plazo</label>
+                    <label className="block text-zinc-400 text-[11px] mb-1">Pasivo a Corto Plazo</label>
                     <input
                       type="number"
                       value={currentLiabilities}
                       onChange={(e) => setCurrentLiabilities(Number(e.target.value))}
-                      className="mt-1 w-full rounded bg-[#0E1E33] p-2 text-white border border-white/10"
+                      className="w-full rounded-lg border border-white/[0.08] bg-zinc-950 p-2 text-zinc-100"
                     />
                   </div>
                   <div>
-                    <label className="block text-slate-300">Inventarios</label>
+                    <label className="block text-zinc-400 text-[11px] mb-1">Inventarios</label>
                     <input
                       type="number"
                       value={inventory}
                       onChange={(e) => setInventory(Number(e.target.value))}
-                      className="mt-1 w-full rounded bg-[#0E1E33] p-2 text-white border border-white/10"
+                      className="w-full rounded-lg border border-white/[0.08] bg-zinc-950 p-2 text-zinc-100"
                     />
                   </div>
                   <div>
-                    <label className="block text-slate-300">Deuda Total</label>
+                    <label className="block text-zinc-400 text-[11px] mb-1">Deuda Total</label>
                     <input
                       type="number"
                       value={totalDebt}
                       onChange={(e) => setTotalDebt(Number(e.target.value))}
-                      className="mt-1 w-full rounded bg-[#0E1E33] p-2 text-white border border-white/10"
+                      className="w-full rounded-lg border border-white/[0.08] bg-zinc-950 p-2 text-zinc-100"
                     />
                   </div>
                   <div>
-                    <label className="block text-slate-300">Capital Contable</label>
+                    <label className="block text-zinc-400 text-[11px] mb-1">Capital Contable</label>
                     <input
                       type="number"
                       value={totalEquity}
                       onChange={(e) => setTotalEquity(Number(e.target.value))}
-                      className="mt-1 w-full rounded bg-[#0E1E33] p-2 text-white border border-white/10"
+                      className="w-full rounded-lg border border-white/[0.08] bg-zinc-950 p-2 text-zinc-100"
                     />
                   </div>
                   <div>
-                    <label className="block text-slate-300">Ingresos Totales (Ventas)</label>
+                    <label className="block text-zinc-400 text-[11px] mb-1">Ventas Totales</label>
                     <input
                       type="number"
                       value={totalRevenue}
                       onChange={(e) => setTotalRevenue(Number(e.target.value))}
-                      className="mt-1 w-full rounded bg-[#0E1E33] p-2 text-white border border-white/10"
+                      className="w-full rounded-lg border border-white/[0.08] bg-zinc-950 p-2 text-zinc-100"
                     />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-slate-300">Utilidad Neta</label>
+                    <label className="block text-zinc-400 text-[11px] mb-1">Utilidad Neta</label>
                     <input
                       type="number"
                       value={netIncome}
                       onChange={(e) => setNetIncome(Number(e.target.value))}
-                      className="mt-1 w-full rounded bg-[#0E1E33] p-2 text-white border border-white/10"
+                      className="w-full rounded-lg border border-white/[0.08] bg-zinc-950 p-2 text-zinc-100"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-sm border border-[#B8935F]/40 bg-[#12233B] p-6 lg:col-span-6">
-                <h3 className="border-b border-white/10 pb-3 font-serif text-lg text-white">
-                  Diagnóstico de Salud Financiera
-                </h3>
-                <div className="mt-6 space-y-4">
-                  <div className="flex items-center justify-between rounded bg-[#0E1E33] p-4 border border-white/5">
-                    <div>
-                      <div className="text-xs text-slate-400">Razón Circulante (Solvencia CP)</div>
-                      <div className="text-[11px] text-slate-400">Óptimo: &gt; 1.5</div>
-                    </div>
-                    <div
-                      className={`font-mono text-2xl font-bold ${
-                        financialRatios.currentRatio >= 1.5 ? "text-emerald-400" : "text-amber-400"
-                      }`}
-                    >
+              <div className="grid grid-cols-2 gap-4 md:col-span-6">
+                <div className="rounded-xl border border-white/[0.06] bg-zinc-900/40 p-4 flex flex-col justify-between">
+                  <div>
+                    <div className="text-[11px] text-zinc-500">Solvencia (Circulante)</div>
+                    <div className="mt-1 font-mono text-xl text-zinc-100">
                       {financialRatios.currentRatio}x
                     </div>
                   </div>
-
-                  <div className="flex items-center justify-between rounded bg-[#0E1E33] p-4 border border-white/5">
-                    <div>
-                      <div className="text-xs text-slate-400">Prueba Ácida (Sin Inventarios)</div>
-                      <div className="text-[11px] text-slate-400">Óptimo: &gt; 1.0</div>
-                    </div>
-                    <div
-                      className={`font-mono text-2xl font-bold ${
-                        financialRatios.quickRatio >= 1.0 ? "text-emerald-400" : "text-amber-400"
-                      }`}
-                    >
+                  <div className="text-[10px] text-zinc-500 mt-2">Óptimo: &gt; 1.5</div>
+                </div>
+                <div className="rounded-xl border border-white/[0.06] bg-zinc-900/40 p-4 flex flex-col justify-between">
+                  <div>
+                    <div className="text-[11px] text-zinc-500">Prueba Ácida</div>
+                    <div className="mt-1 font-mono text-xl text-zinc-100">
                       {financialRatios.quickRatio}x
                     </div>
                   </div>
-
-                  <div className="flex items-center justify-between rounded bg-[#0E1E33] p-4 border border-white/5">
-                    <div>
-                      <div className="text-xs text-slate-400">Apalancamiento (Deuda / Capital)</div>
-                      <div className="text-[11px] text-slate-400">Prudencial: &lt; 1.0</div>
-                    </div>
-                    <div
-                      className={`font-mono text-2xl font-bold ${
-                        financialRatios.debtToEquity <= 1.0 ? "text-emerald-400" : "text-rose-400"
-                      }`}
-                    >
+                  <div className="text-[10px] text-zinc-500 mt-2">Óptimo: &gt; 1.0</div>
+                </div>
+                <div className="rounded-xl border border-white/[0.06] bg-zinc-900/40 p-4 flex flex-col justify-between">
+                  <div>
+                    <div className="text-[11px] text-zinc-500">Apalancamiento</div>
+                    <div className="mt-1 font-mono text-xl text-zinc-100">
                       {financialRatios.debtToEquity}x
                     </div>
                   </div>
-
-                  <div className="flex items-center justify-between rounded bg-[#0E1E33] p-4 border border-white/5">
-                    <div>
-                      <div className="text-xs text-slate-400">Margen Neto de Utilidad</div>
-                      <div className="text-[11px] text-slate-400">Rentabilidad sobre Ventas</div>
-                    </div>
-                    <div className="font-mono text-2xl font-bold text-[#B8935F]">
+                  <div className="text-[10px] text-zinc-500 mt-2">Prudencial: &lt; 1.0</div>
+                </div>
+                <div className="rounded-xl border border-white/[0.06] bg-zinc-900/40 p-4 flex flex-col justify-between">
+                  <div>
+                    <div className="text-[11px] text-zinc-500">Margen Neto</div>
+                    <div className="mt-1 font-mono text-xl text-[#C5A880]">
                       {financialRatios.netProfitMargin}%
                     </div>
                   </div>
+                  <div className="text-[10px] text-zinc-500 mt-2">Rentabilidad s/ ventas</div>
                 </div>
               </div>
             </div>
@@ -935,60 +934,41 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ASISTENTE VIRTUAL INTELIGENTE (Chatbot NLP & Triage) */}
-      <section id="asistente" className="scroll-mt-24 border-b border-white/10 py-16 lg:py-20">
-        <div className="mx-auto max-w-5xl px-6 lg:px-10">
-          <div className="text-center">
-            <span className="text-xs font-semibold uppercase tracking-widest text-[#B8935F]">
-              Atención 24/7 con Inteligencia Fiscal
+      {/* SECCIÓN: ASISTENTE DE DIAGNÓSTICO */}
+      <section id="asistente" className="border-t border-white/[0.06] py-16 md:py-24">
+        <div className="mx-auto max-w-3xl px-6">
+          <div className="text-center mb-8">
+            <span className="text-xs uppercase tracking-widest text-[#C5A880]">
+              Orientación Inmediata
             </span>
-            <h2 className="mt-2 font-serif text-3xl text-white sm:text-4xl">
-              Asistente Virtual de Diagnóstico & Triage
+            <h2 className="mt-1 text-2xl font-normal text-zinc-100">
+              Asistente Fiscal de Diagnóstico
             </h2>
-            <p className="mt-2 text-sm text-slate-300">
-              Conozca al instante qué régimen, deducciones o solución requiere su situación sin costo.
+            <p className="mt-1 text-xs text-zinc-400">
+              Resuelve dudas comunes sobre tu régimen y obligaciones sin costo.
             </p>
           </div>
 
-          <div className="mt-10 overflow-hidden rounded-sm border border-[#B8935F]/30 bg-[#12233B] shadow-2xl">
-            {/* Encabezado Chat */}
-            <div className="flex items-center justify-between border-b border-white/10 bg-[#0E1E33] px-6 py-4">
-              <div className="flex items-center gap-3">
-                <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-[#B8935F] text-[#0E1E33] font-bold">
-                  AI
-                  <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-emerald-400 border-2 border-[#0E1E33]"></span>
-                </div>
-                <div>
-                  <h4 className="text-sm font-semibold text-white">Asesor Fiscal Virtual · Vázquez & Asociados</h4>
-                  <p className="text-[11px] text-[#B8935F]">Entrenado con CFF, LISR, LIVA y Resoluciones SAT 2026</p>
-                </div>
-              </div>
-              <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-400 border border-emerald-500/20">
-                En Línea 24/7
-              </span>
-            </div>
-
-            {/* Mensajes */}
-            <div className="h-80 overflow-y-auto p-6 space-y-4 bg-[#0A1626]/50">
+          <div className="rounded-xl border border-white/[0.08] bg-zinc-900/40 overflow-hidden shadow-sm">
+            <div className="h-64 overflow-y-auto p-5 space-y-3 bg-zinc-950/40 text-xs">
               {chatMessages.map((msg, i) => (
                 <div
                   key={i}
                   className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-xl rounded-sm p-4 text-xs leading-relaxed ${
+                    className={`max-w-md rounded-lg p-3 leading-relaxed ${
                       msg.sender === "user"
-                        ? "bg-[#B8935F] text-[#0E1E33] font-medium"
-                        : "bg-[#162945] text-slate-200 border border-white/10"
+                        ? "bg-zinc-100 text-zinc-950 font-medium"
+                        : "border border-white/[0.06] bg-zinc-900 text-zinc-300"
                     }`}
                   >
                     {msg.text}
-
                     {msg.action && (
-                      <div className="mt-3 pt-2 border-t border-white/10">
+                      <div className="mt-2 pt-1.5 border-t border-white/[0.08]">
                         <a
                           href="#agendamiento"
-                          className="inline-block rounded-sm bg-[#B8935F] px-3 py-1 text-[11px] font-bold text-[#0E1E33] hover:bg-white"
+                          className="text-[11px] text-[#C5A880] hover:underline"
                         >
                           → {msg.action}
                         </a>
@@ -999,102 +979,86 @@ export default function HomePage() {
               ))}
             </div>
 
-            {/* Botones de Respuesta Rápida */}
-            <div className="border-t border-white/5 bg-[#0E1E33] px-6 py-3 flex flex-wrap gap-2 text-xs">
-              <span className="text-slate-400 py-1">Opciones rápidas:</span>
+            {/* Opciones rápidas */}
+            <div className="flex flex-wrap gap-1.5 border-t border-white/[0.04] bg-zinc-900/80 px-4 py-2 text-[11px]">
+              <span className="text-zinc-500 py-0.5">Consultar:</span>
               <button
                 type="button"
-                onClick={() => handleUserChatResponse("Soy freelancer / profesionista y quiero tributar en RESICO")}
-                className="rounded-sm border border-white/10 bg-[#12233B] px-3 py-1 text-slate-300 hover:border-[#B8935F] hover:text-white"
+                onClick={() => handleUserChat("Soy freelancer y quiero tributar en RESICO")}
+                className="rounded border border-white/[0.06] bg-zinc-900 px-2 py-0.5 text-zinc-400 hover:text-zinc-200"
               >
-                Soy Freelancer / RESICO
+                Freelance / RESICO
               </button>
               <button
                 type="button"
-                onClick={() => handleUserChatResponse("Tengo una empresa PyME y necesito auditoría y nóminas")}
-                className="rounded-sm border border-white/10 bg-[#12233B] px-3 py-1 text-slate-300 hover:border-[#B8935F] hover:text-white"
+                onClick={() => handleUserChat("Tengo una PyME y necesito auditoría y nóminas")}
+                className="rounded border border-white/[0.06] bg-zinc-900 px-2 py-0.5 text-zinc-400 hover:text-zinc-200"
               >
-                Tengo una Empresa / PyME
+                PyME / Nóminas
               </button>
               <button
                 type="button"
-                onClick={() => handleUserChatResponse("Recibí un requerimiento o notificación del SAT")}
-                className="rounded-sm border border-rose-500/30 bg-rose-950/30 px-3 py-1 text-rose-300 hover:border-rose-400"
+                onClick={() => handleUserChat("¿Cómo sincronizar facturas con el SAT?")}
+                className="rounded border border-white/[0.06] bg-zinc-900 px-2 py-0.5 text-zinc-400 hover:text-zinc-200"
               >
-                Notificación del SAT urgente
+                Descarga SAT
               </button>
             </div>
 
-            {/* Input Chat */}
+            {/* Input de chat */}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                if (chatInput.trim()) handleUserChatResponse(chatInput);
+                if (chatInput.trim()) handleUserChat(chatInput);
               }}
-              className="flex border-t border-white/10 bg-[#0E1E33] p-4 gap-3"
+              className="flex border-t border-white/[0.06] p-3 gap-2 bg-zinc-950"
             >
               <input
                 type="text"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Escriba su duda fiscal (ej. ¿Cómo deduzco equipo de cómputo en RESICO?)..."
-                className="flex-1 rounded-sm border border-white/10 bg-[#12233B] px-4 py-2.5 text-xs text-white focus:border-[#B8935F] focus:outline-none"
+                placeholder="Escribe tu consulta fiscal..."
+                className="flex-1 rounded-lg border border-white/[0.08] bg-zinc-900/70 px-3 py-2 text-xs text-zinc-100 focus:border-[#C5A880] focus:outline-none"
               />
               <button
                 type="submit"
-                className="rounded-sm bg-[#B8935F] px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-[#0E1E33] hover:bg-[#c9a773]"
+                className="rounded-lg bg-zinc-100 px-4 py-2 text-xs font-medium text-zinc-950 hover:bg-white"
               >
-                Consultar
+                Enviar
               </button>
             </form>
           </div>
         </div>
       </section>
 
-      {/* SISTEMA DE ACTUALIZACIÓN LEGAL AUTOMATIZADO (NEWSFEED DOF / SAT) */}
-      <section id="newsfeed" className="scroll-mt-24 border-b border-white/10 bg-[#0B1830] py-16 lg:py-20">
-        <div className="mx-auto max-w-7xl px-6 lg:px-10">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-white/10 pb-6">
-            <div>
-              <span className="text-xs font-semibold uppercase tracking-widest text-[#B8935F]">
-                Monitor Legal Continuo
-              </span>
-              <h2 className="mt-1 font-serif text-3xl text-white">
-                Newsfeed Fiscal & Criterios Oficiales
-              </h2>
-              <p className="mt-2 text-xs text-slate-300">
-                Extracción y síntesis ejecutiva con IA de las publicaciones del Diario Oficial de la Federación y el SAT.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
-              <span className="text-xs text-slate-400">Última sincronización: Hoy 07:00 AM</span>
-            </div>
+      {/* SECCIÓN: NOTICIAS & REFORMAS FISCALES */}
+      <section id="noticias" className="border-t border-white/[0.06] py-16 md:py-24">
+        <div className="mx-auto max-w-6xl px-6">
+          <div className="mb-10">
+            <span className="text-xs uppercase tracking-widest text-[#C5A880]">
+              Monitoreo Normativo
+            </span>
+            <h2 className="mt-1 text-2xl font-normal text-zinc-100">
+              Criterios del SAT & Novedades DOF
+            </h2>
           </div>
 
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-            {initialNews.map((item) => (
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            {initialNews.map((news) => (
               <div
-                key={item.id}
-                className="flex flex-col justify-between rounded-sm border border-white/10 bg-[#12233B] p-6 hover:border-[#B8935F]/40 transition-all"
+                key={news.id}
+                className="rounded-xl border border-white/[0.06] bg-zinc-900/30 p-5 flex flex-col justify-between hover:border-white/[0.12] transition-colors"
               >
                 <div>
-                  <div className="flex items-center justify-between text-[11px] text-slate-400 mb-3">
-                    <span className="rounded bg-[#0E1E33] px-2 py-0.5 font-semibold text-[#B8935F] border border-white/5">
-                      {item.badge}
-                    </span>
-                    <span>{item.date}</span>
+                  <div className="flex items-center justify-between text-[11px] text-zinc-500 mb-2">
+                    <span>{news.source}</span>
+                    <span>{news.date}</span>
                   </div>
-                  <h4 className="font-serif text-base font-bold text-white mb-2 leading-snug">
-                    {item.title}
-                  </h4>
-                  <p className="text-xs text-slate-300 mb-4 leading-relaxed">
-                    {item.aiSummary}
-                  </p>
+                  <h3 className="text-sm font-medium text-zinc-100 mb-2">{news.title}</h3>
+                  <p className="text-xs text-zinc-400 leading-relaxed mb-4">{news.summary}</p>
                 </div>
-                <div className="rounded-sm bg-[#0E1E33] p-3 border border-white/5 text-[11px] text-emerald-400">
-                  <span className="font-bold text-white">Impacto Contable: </span>
-                  {item.impact}
+                <div className="text-[11px] text-zinc-500 border-t border-white/[0.04] pt-3">
+                  <span className="text-zinc-400">Alcance:</span> {news.impact}
                 </div>
               </div>
             ))}
@@ -1102,170 +1066,129 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* SISTEMA DE AGENDAMIENTO & CRM (Booking con Prepago) */}
-      <section id="agendamiento" className="scroll-mt-24 border-b border-white/10 py-16 lg:py-20">
-        <div className="mx-auto max-w-5xl px-6 lg:px-10">
-          <div className="text-center">
-            <span className="text-xs font-semibold uppercase tracking-widest text-[#B8935F]">
-              Agenda Privada
-            </span>
-            <h2 className="mt-2 font-serif text-3xl text-white sm:text-4xl">
-              Reserve su Sesión de Diagnóstico Fiscal
+      {/* SECCIÓN: AGENDAMIENTO */}
+      <section id="agendamiento" className="border-t border-white/[0.06] py-16 md:py-24">
+        <div className="mx-auto max-w-3xl px-6">
+          <div className="text-center mb-8">
+            <span className="text-xs uppercase tracking-widest text-[#C5A880]">Agenda Privada</span>
+            <h2 className="mt-1 text-2xl font-normal text-zinc-100">
+              Sesión de Diagnóstico Fiscal
             </h2>
-            <p className="mt-2 text-sm text-slate-300">
-              Seleccione la modalidad y horario de su preferencia. Confirmación inmediata y enlace de videoconferencia.
+            <p className="mt-1 text-xs text-zinc-400">
+              Atención directa y confidencial por el Mtro. Alejandro Vázquez.
             </p>
           </div>
 
-          <div className="mt-10 rounded-sm border border-[#B8935F]/40 bg-[#12233B] p-8 shadow-2xl">
+          <div className="rounded-xl border border-white/[0.08] bg-zinc-900/40 p-6 md:p-8">
             {bookingConfirmed ? (
-              <div className="text-center py-12">
-                <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 text-3xl mb-4">
+              <div className="text-center py-8">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400 text-xl mb-3">
                   ✓
                 </div>
-                <h3 className="font-serif text-2xl font-bold text-white">
-                  Cita Confirmada con Éxito
-                </h3>
-                <p className="mt-3 text-sm text-slate-300 max-w-md mx-auto">
-                  Estimado(a) <span className="font-semibold text-white">{clientName}</span>, hemos reservado su sesión ({bookingService}) para el{" "}
-                  <span className="text-[#B8935F] font-semibold">{bookingDate} a las {bookingTime}</span> ({bookingType === "MEET" ? "Google Meet" : "Presencial Reforma"}).
+                <h3 className="text-lg font-medium text-zinc-100">Cita Registrada</h3>
+                <p className="mt-2 text-xs text-zinc-400 max-w-md mx-auto">
+                  Estimado(a) <strong className="text-zinc-200">{clientName}</strong>, se ha
+                  programado su sesión para el{" "}
+                  <strong className="text-zinc-200">
+                    {bookingDate} a las {bookingTime}
+                  </strong>
+                  . Nos comunicaremos a <span className="text-zinc-200">{clientEmail}</span>.
                 </p>
-                <div className="mt-6 flex justify-center gap-4">
+                <div className="mt-6 flex justify-center gap-3">
                   <a
                     href={whatsappUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="rounded-sm bg-[#B8935F] px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-[#0E1E33]"
+                    className="rounded-lg bg-zinc-100 px-4 py-2 text-xs font-medium text-zinc-950 hover:bg-white"
                   >
-                    Confirmar ahora por WhatsApp
+                    Confirmar por WhatsApp
                   </a>
                   <button
                     type="button"
                     onClick={() => setBookingConfirmed(false)}
-                    className="rounded-sm border border-white/20 px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-300"
+                    className="rounded-lg border border-white/[0.1] px-4 py-2 text-xs text-zinc-400 hover:text-zinc-200"
                   >
-                    Nueva Reserva
+                    Nueva cita
                   </button>
                 </div>
               </div>
             ) : (
-              <form onSubmit={handleBookingSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (clientName && clientEmail) setBookingConfirmed(true);
+                }}
+                className="space-y-4"
+              >
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
-                      Nombre Completo / Razón Social
-                    </label>
+                    <label className="block text-xs text-zinc-400 mb-1">Nombre Completo</label>
                     <input
                       type="text"
                       required
                       value={clientName}
                       onChange={(e) => setClientName(e.target.value)}
-                      placeholder="Lic. Alejandro Fernández"
-                      className="w-full rounded-sm border border-white/10 bg-[#0E1E33] px-4 py-2.5 text-xs text-white focus:border-[#B8935F] focus:outline-none"
+                      placeholder="Ej. Sofía Carranza"
+                      className="w-full rounded-lg border border-white/[0.08] bg-zinc-950 p-2.5 text-xs text-zinc-100 focus:border-[#C5A880] focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
-                      Correo Electrónico Corporativo
-                    </label>
+                    <label className="block text-xs text-zinc-400 mb-1">Correo Electrónico</label>
                     <input
                       type="email"
                       required
                       value={clientEmail}
                       onChange={(e) => setClientEmail(e.target.value)}
-                      placeholder="alejandro@holding.mx"
-                      className="w-full rounded-sm border border-white/10 bg-[#0E1E33] px-4 py-2.5 text-xs text-white focus:border-[#B8935F] focus:outline-none"
+                      placeholder="sofia@empresa.mx"
+                      className="w-full rounded-lg border border-white/[0.08] bg-zinc-950 p-2.5 text-xs text-zinc-100 focus:border-[#C5A880] focus:outline-none"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
-                      Teléfono / WhatsApp de Contacto
-                    </label>
-                    <input
-                      type="tel"
-                      value={clientPhone}
-                      onChange={(e) => setClientPhone(e.target.value)}
-                      placeholder="+52 55 1234 5678"
-                      className="w-full rounded-sm border border-white/10 bg-[#0E1E33] px-4 py-2.5 text-xs text-white focus:border-[#B8935F] focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
-                      Servicio Requerido
-                    </label>
+                    <label className="block text-xs text-zinc-400 mb-1">Servicio</label>
                     <select
                       value={bookingService}
                       onChange={(e) => setBookingService(e.target.value)}
-                      className="w-full rounded-sm border border-white/10 bg-[#0E1E33] px-4 py-2.5 text-xs text-white focus:border-[#B8935F] focus:outline-none"
+                      className="w-full rounded-lg border border-white/[0.08] bg-zinc-950 p-2.5 text-xs text-zinc-100 focus:border-[#C5A880] focus:outline-none"
                     >
-                      <option>Diagnóstico Fiscal de Alta Riqueza / PyME</option>
-                      <option>Regularización de Ejercicios Anteriores</option>
-                      <option>Contabilidad Mensual y Nóminas</option>
-                      <option>Planeación Estratégica RESICO</option>
-                      <option>Defensa / Aclaración ante Notificación SAT</option>
+                      <option>Diagnóstico Fiscal</option>
+                      <option>Regularización de Ejercicios</option>
+                      <option>Contabilidad Mensual</option>
+                      <option>Estrategia RESICO</option>
                     </select>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
-                      Fecha de Asesoría
-                    </label>
+                    <label className="block text-xs text-zinc-400 mb-1">Fecha</label>
                     <input
                       type="date"
                       value={bookingDate}
                       onChange={(e) => setBookingDate(e.target.value)}
-                      className="w-full rounded-sm border border-white/10 bg-[#0E1E33] px-4 py-2 text-xs text-white focus:border-[#B8935F] focus:outline-none"
+                      className="w-full rounded-lg border border-white/[0.08] bg-zinc-950 p-2.5 text-xs text-zinc-100 focus:border-[#C5A880] focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
-                      Horario Disponible
-                    </label>
+                    <label className="block text-xs text-zinc-400 mb-1">Hora</label>
                     <select
                       value={bookingTime}
                       onChange={(e) => setBookingTime(e.target.value)}
-                      className="w-full rounded-sm border border-white/10 bg-[#0E1E33] px-4 py-2 text-xs text-white focus:border-[#B8935F] focus:outline-none"
+                      className="w-full rounded-lg border border-white/[0.08] bg-zinc-950 p-2.5 text-xs text-zinc-100 focus:border-[#C5A880] focus:outline-none"
                     >
                       <option>10:00 AM</option>
                       <option>11:00 AM</option>
                       <option>01:00 PM</option>
                       <option>04:00 PM</option>
-                      <option>06:00 PM</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
-                      Modalidad
-                    </label>
-                    <select
-                      value={bookingType}
-                      onChange={(e) => setBookingType(e.target.value as BookingType)}
-                      className="w-full rounded-sm border border-white/10 bg-[#0E1E33] px-4 py-2 text-xs text-white focus:border-[#B8935F] focus:outline-none"
-                    >
-                      <option value="MEET">Videollamada Google Meet</option>
-                      <option value="PRESENCIAL">Presencial Torre Reforma (CDMX)</option>
                     </select>
                   </div>
                 </div>
 
-                <div className="rounded-sm border border-white/10 bg-[#0E1E33] p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-                  <div>
-                    <div className="text-xs text-slate-400">Honorarios de la Sesión de Diagnóstico (45 min):</div>
-                    <div className="text-xl font-bold font-mono text-white">$1,500 MXN + IVA</div>
-                    <div className="text-[11px] text-emerald-400">
-                      * El 100% del honorario se abona a su primer mes si contrata una póliza contable.
-                    </div>
-                  </div>
+                <div className="pt-2">
                   <button
                     type="submit"
-                    className="w-full sm:w-auto rounded-sm bg-[#B8935F] px-8 py-3 text-xs font-bold uppercase tracking-wider text-[#0E1E33] shadow-lg hover:bg-[#c9a773]"
+                    className="w-full rounded-lg bg-zinc-100 py-3 text-xs font-medium text-zinc-950 hover:bg-white transition-colors"
                   >
-                    Confirmar & Proceder al Pago Seguro
+                    Confirmar Agendamiento
                   </button>
                 </div>
               </form>
@@ -1274,140 +1197,27 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* PORTAL DEL CLIENTE (Demostración SaaS Privado) */}
-      <section id="portal" className="scroll-mt-24 border-b border-white/10 bg-[#0B1830] py-16 lg:py-20">
-        <div className="mx-auto max-w-6xl px-6 lg:px-10">
-          <div className="text-center">
-            <span className="text-xs font-semibold uppercase tracking-widest text-[#B8935F]">
-              Ecosistema Operativo Privado
-            </span>
-            <h2 className="mt-2 font-serif text-3xl text-white sm:text-4xl">
-              Portal del Cliente · Bóveda de Documentos
-            </h2>
-            <p className="mt-2 text-sm text-slate-300">
-              Cada cliente cuenta con un entorno cifrado para cargar sus CFDI y consultar el estatus de sus obligaciones.
-            </p>
+      {/* Footer Minimalista */}
+      <footer className="border-t border-white/[0.06] py-10 text-xs text-zinc-500">
+        <div className="mx-auto max-w-6xl px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-zinc-300">{firm.name}</span>
+            <span>·</span>
+            <span>{firm.location}</span>
           </div>
-
-          <div className="mt-10 rounded-sm border border-white/10 bg-[#12233B] p-6 shadow-xl">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4">
-              <div className="flex gap-4 text-xs font-bold uppercase">
-                <button
-                  type="button"
-                  onClick={() => setPortalTab("resumen")}
-                  className={`pb-2 ${portalTab === "resumen" ? "border-b-2 border-[#B8935F] text-[#B8935F]" : "text-slate-400"}`}
-                >
-                  Expediente Fiscal
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPortalTab("documentos")}
-                  className={`pb-2 ${portalTab === "documentos" ? "border-b-2 border-[#B8935F] text-[#B8935F]" : "text-slate-400"}`}
-                >
-                  Bóveda de Documentos ({mockFiles.length})
-                </button>
-              </div>
-
-              {/* Input Carga de Archivos */}
-              <label className="cursor-pointer rounded-sm bg-[#B8935F] px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-[#0E1E33] hover:bg-[#c9a773]">
-                <span>+ Cargar Factura XML / PDF</span>
-                <input
-                  type="file"
-                  accept=".xml,.pdf"
-                  onChange={handleMockUpload}
-                  className="hidden"
-                />
-              </label>
-            </div>
-
-            {uploadSuccess && (
-              <div className="mt-4 rounded bg-emerald-500/20 p-3 text-xs text-emerald-300 border border-emerald-500/30">
-                ✓ Archivo procesado y almacenado correctamente en la bóveda cifrada.
-              </div>
-            )}
-
-            {/* Contenido Bóveda */}
-            <div className="mt-6">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-white/10 text-slate-400">
-                      <th className="py-2.5">Nombre del Documento</th>
-                      <th className="py-2.5">Tipo</th>
-                      <th className="py-2.5">Tamaño</th>
-                      <th className="py-2.5">Fecha</th>
-                      <th className="py-2.5 text-right">Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5 font-mono">
-                    {mockFiles.map((doc, idx) => (
-                      <tr key={idx} className="hover:bg-white/5">
-                        <td className="py-3 text-white font-medium flex items-center gap-2">
-                          <span className="text-[#B8935F]">📄</span>
-                          <span>{doc.name}</span>
-                        </td>
-                        <td className="py-3 text-slate-300">{doc.type}</td>
-                        <td className="py-3 text-slate-400">{doc.size}</td>
-                        <td className="py-3 text-slate-400">{doc.date}</td>
-                        <td className="py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => alert(`Descargando copia de ${doc.name}`)}
-                            className="rounded border border-white/10 px-2 py-1 text-[11px] text-[#B8935F] hover:bg-[#B8935F] hover:text-[#0E1E33]"
-                          >
-                            Descargar
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-white/10 bg-[#081220] py-12 text-xs text-slate-400">
-        <div className="mx-auto max-w-7xl px-6 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div>
-            <span className="font-serif text-base font-bold text-white block">{firm.name}</span>
-            <p className="text-slate-400 mt-1">{firm.location} · Tel: {firm.phone}</p>
-          </div>
-          <div className="flex gap-6">
-            <a href="#inicio" className="hover:text-white">Inicio</a>
-            <a href="#calculadoras" className="hover:text-white">Calculadoras</a>
-            <a href="#asistente" className="hover:text-white">Asistente Fiscal</a>
-            <a href="#agendamiento" className="hover:text-white">Agendar</a>
-            <a href="/accountant" className="text-[#B8935F] hover:underline">Acceso Interno</a>
-          </div>
-          <div>
-            © {new Date().getFullYear()} {firm.name}. Cumplimiento tributario con secreto profesional.
+          <div className="flex items-center gap-4 text-[11px]">
+            <a href="#facturas-sat" className="hover:text-zinc-300">
+              CFDI
+            </a>
+            <a href="#calculadoras" className="hover:text-zinc-300">
+              Simuladores
+            </a>
+            <Link href="/login" className="text-[#C5A880] hover:underline">
+              Portal Interno
+            </Link>
           </div>
         </div>
       </footer>
-
-      {/* Floating CTA Buttons */}
-      <aside aria-label="Acciones Rápidas" className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
-        <a
-          href="#inicio"
-          aria-label="Volver al inicio"
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-[#12233B] text-[#B8935F] shadow-xl border border-[#B8935F]/40 transition-all hover:bg-[#B8935F] hover:text-[#0E1E33] text-sm font-bold"
-          title="Volver arriba"
-        >
-          ↑
-        </a>
-        <a
-          href={whatsappUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-3 text-xs font-bold text-white shadow-2xl transition-all hover:bg-emerald-500 hover:scale-105 ring-2 ring-white/20"
-        >
-          <span className="text-base">💬</span>
-          <span>WhatsApp Contador</span>
-        </a>
-      </aside>
     </div>
   );
 }
