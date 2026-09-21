@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Firm {
+  id            String        @id @default(cuid())
+  name          String
+  mode          String        @default("SOLOPRENEUR") // SOLOPRENEUR | AGENCY
+  brandColor    String?
+  whatsappPhone String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  users         User[]
+  clients       Client[]
+  appointments  Appointment[]
+  newsItems     NewsItem[]
+}
+
+model User {
+  id                  String        @id @default(cuid())
+  firmId              String
+  firm                Firm          @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  name                String
+  email               String        @unique
+  passwordHash        String
+  role                String        @default("ACCOUNTANT") // SUPER_ADMIN | ACCOUNTANT | CLIENT
+  title               String?
+  specialty           String?
+  bio                 String?
+  avatarUrl           String?
+  isPubliclyListed    Boolean       @default(true)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  clientProfile       Client?       @relation("UserClientProfile")
+  clientsAsAccountant Client[]      @relation("AccountantClients")
+  appointments        Appointment[] @relation("AccountantAppointments")
+  documentsUploaded   Document[]    @relation("UploadedBy")
+  approvedNews        NewsItem[]    @relation("ApprovedBy")
+
+  @@index([firmId])
+}
+
+model Client {
+  id           String        @id @default(cuid())
+  firmId       String
+  firm         Firm          @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  accountantId String?
+  accountant   User?         @relation("AccountantClients", fields: [accountantId], references: [id])
+  userId       String?       @unique
+  user         User?         @relation("UserClientProfile", fields: [userId], references: [id])
+  fullName     String
+  email        String
+  phone        String?
+  taxId        String?
+  clientType   String        @default("INDIVIDUAL") // INDIVIDUAL | FREELANCER | BUSINESS
+  status       String        @default("ACTIVE")     // LEAD | ACTIVE | INACTIVE
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  appointments Appointment[]
+  documents    Document[]
+
+  @@index([firmId])
+  @@index([accountantId])
+}
+
+model Appointment {
+  id           String   @id @default(cuid())
+  firmId       String
+  firm         Firm     @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  clientId     String
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  accountantId String
+  accountant   User     @relation("AccountantAppointments", fields: [accountantId], references: [id])
+  startTime    DateTime
+  endTime      DateTime
+  topic        String
+  status       String   @default("SCHEDULED") // SCHEDULED | COMPLETED | CANCELLED | NO_SHOW
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([firmId])
+  @@index([accountantId, startTime])
+}
+
+model Document {
+  id           String   @id @default(cuid())
+  clientId     String
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  uploadedById String
+  uploadedBy   User     @relation("UploadedBy", fields: [uploadedById], references: [id])
+  fileName     String
+  localPath    String
+  mimeType     String
+  sizeBytes    Int
+  category     String   @default("OTHER") // INVOICE | TAX_RETURN | ID_DOCUMENT | CONTRACT | OTHER
+  createdAt    DateTime @default(now())
+
+  @@index([clientId])
+}
+
+model NewsItem {
+  id            String    @id @default(cuid())
+  firmId        String
+  firm          Firm      @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  sourceUrl     String
+  sourceName    String
+  rawSummary    String
+  editedSummary String?
+  status        String    @default("PENDING_REVIEW") // PENDING_REVIEW | APPROVED | REJECTED | PUBLISHED
+  approvedById  String?
+  approvedBy    User?     @relation("ApprovedBy", fields: [approvedById], references: [id])
+  publishedAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([firmId, status])
+}
