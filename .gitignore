@@ -16,11 +16,8 @@
 # production
 /build
 
-# database
-*.db
+# database temporary files
 *.db-journal
-*.sqlite
-dev.db
 
 # misc
 .DS_Store
