@@ -17,12 +17,18 @@ const platformInfo = {
   name: "Vázquez & Asociados",
   softwareBrand: "Plataforma Contable Digital · SAT Sync Edition",
   subname: "Ecosistema Fiscal & Contable Automatizado",
+  agencyName: "MA Digital Artisans",
   counterName: "Mtro. Alejandro Vázquez, CPC",
   credentials: "CPC · Cédula Profesional 8492019 · Especialista en Estrategia Fiscal",
-  whatsappNumber: "525512345678", // Número para ventas / contacto
-  email: "contacto@vazquezcontadores.mx",
-  phone: "+52 (55) 5482-9000",
-  location: "Torre Reforma 483, CDMX",
+  whatsappNumber: "524443211123", // WhatsApp oficial MA Digital Artisans
+  displayPhone: "+52 (444) 321-1123",
+  email: "madigitalartisans@gmail.com",
+  social: {
+    facebook: "https://www.facebook.com/share/1ErnvLwkj8/?mibextid=wwXIfr",
+    instagram: "https://www.instagram.com/ma_digital_artisans?stkn=M2hwcTFndHV4YXE1&utm_source=qr",
+    tiktok: "https://www.tiktok.com/@ma_digital_artisans?_r=1&_t=ZS-99xKbPOTGjt",
+  },
+  location: "San Luis Potosí / CDMX, México",
 };
 
 const initialNews = [
@@ -190,10 +196,10 @@ export default function HomePage() {
       reply =
         "Esta plataforma se integra directamente con el Web Service oficial de Descarga Masiva del SAT (mediante e.firma .key + .cer cifrada con AES-256) y con parser local de CFDI 4.0. Permite extraer hasta 200,000 registros y automatizar la contabilidad mensual sin intervención manual.";
       actionBtn = "Probar Conexión SAT";
-    } else if (lower.includes("comprar") || lower.includes("inversion") || lower.includes("precio") || lower.includes("adquirir") || lower.includes("vender")) {
+    } else if (lower.includes("comprar") || lower.includes("inversion") || lower.includes("precio") || lower.includes("adquirir") || lower.includes("vender") || lower.includes("contacto") || lower.includes("redes") || lower.includes("whatsapp")) {
       reply =
-        "Esta solución llave en mano incluye arquitectura completa en Next.js 14, motor fiscal, boveda de XMLs y base de datos multi-inquilino. Es ideal para que un despacho contable automatice sus operaciones o para lanzarla como SaaS contable de suscripción.";
-      actionBtn = "Contactar para Adquisición";
+        "Esta plataforma es desarrollada y comercializada por MA Digital Artisans. Para adquirir el código fuente, cotizaciones de marca blanca o demostraciones personalizadas, puedes escribirnos por WhatsApp al +52 444 321 1123, por correo a madigitalartisans@gmail.com o seguirnos en Instagram y TikTok (@ma_digital_artisans).";
+      actionBtn = "Contactar por WhatsApp";
     } else if (lower.includes("resico") || lower.includes("freelance") || lower.includes("honorarios")) {
       reply =
         "Para personas físicas y freelancers en RESICO, la plataforma calcula automáticamente las tasas de ISR reducidas (1% al 2.5%) y concilia las retenciones de 1.25% aplicadas por personas morales.";
@@ -270,7 +276,13 @@ export default function HomePage() {
   };
 
   const whatsappInversionUrl = `https://wa.me/${platformInfo.whatsappNumber}?text=${encodeURIComponent(
-    "Hola, me interesa conocer más sobre la plataforma contable con extracción del SAT, ya sea para adquirir la solución o implementarla en mi despacho."
+    "Hola MA Digital Artisans, me interesa conocer más sobre la plataforma contable con extracción del SAT para adquirirla o solicitar una demo."
+  )}`;
+
+  const emailInversionUrl = `mailto:${platformInfo.email}?subject=${encodeURIComponent(
+    "Interés en adquirir la Plataforma Contable (SAT Sync Edition)"
+  )}&body=${encodeURIComponent(
+    "Hola equipo de MA Digital Artisans,\n\nMe interesa conocer los detalles y costos para adquirir o implementar la plataforma contable con conexión al SAT.\n\nNombre:\nTeléfono:\nEmpresa / Despacho:\n"
   )}`;
 
   return (
@@ -1351,44 +1363,94 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* SECCIÓN CALL TO ACTION FINAL: VENTA / ADQUISICIÓN / AGENDAMIENTO */}
+      {/* SECCIÓN CALL TO ACTION FINAL: VENTA / ADQUISICIÓN / CONTACTO MA DIGITAL ARTISANS */}
       <section id="agendamiento" className="border-t border-white/[0.06] py-16 md:py-24">
         <div className="mx-auto max-w-4xl px-6">
           <div className="rounded-2xl border border-[#C5A880]/30 bg-gradient-to-b from-zinc-900/80 to-zinc-950 p-8 md:p-12 text-center relative overflow-hidden">
             <div className="inline-flex items-center gap-2 rounded-full border border-[#C5A880]/40 bg-[#C5A880]/10 px-3 py-1 text-xs text-[#C5A880] mb-4">
-              <span>Oportunidad de Adquisición o Implementación</span>
+              <span>Desarrollado & Comercializado por {platformInfo.agencyName}</span>
             </div>
 
             <h2 className="text-2xl sm:text-4xl font-normal text-zinc-100 tracking-tight">
-              Lleva tu despacho o proyecto tecnológico al siguiente nivel.
+              ¿Deseas adquirir esta plataforma o implementarla en tu despacho?
             </h2>
 
             <p className="mt-4 text-xs sm:text-sm text-zinc-400 max-w-xl mx-auto leading-relaxed">
-              Adquiere el código fuente completo de esta plataforma para comercializarla con tu propia marca,
-              o implementa el sistema de extracción del SAT en tus operaciones contables hoy mismo.
+              Adquiere el código fuente completo, derechos marca blanca para comercializarla con tus propios clientes
+              o la integración del sistema de extracción del SAT en tus operaciones. Contáctanos directamente por cualquiera de nuestros canales oficiales:
             </p>
 
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+            {/* Opciones directas de contacto */}
+            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg mx-auto text-left">
+              {/* WhatsApp Card */}
               <a
                 href={whatsappInversionUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-full bg-zinc-100 px-6 py-3 text-xs font-semibold text-zinc-950 hover:bg-white transition-all shadow-lg"
+                className="group rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 transition-all hover:border-emerald-400 hover:bg-emerald-500/10 flex items-center justify-between"
               >
-                Solicitar Cotización de Compra / Demo
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider text-emerald-400 font-medium">WhatsApp Oficial</div>
+                  <div className="text-sm font-semibold text-zinc-100 mt-0.5">{platformInfo.displayPhone}</div>
+                  <div className="text-[11px] text-zinc-400">Atención inmediata para compra / demos</div>
+                </div>
+                <span className="text-xl group-hover:scale-110 transition-transform">💬</span>
               </a>
+
+              {/* Email Card */}
               <a
-                href={`mailto:${platformInfo.email}?subject=Interés%20en%20adquirir%20Plataforma%20Contable`}
-                className="rounded-full border border-white/[0.12] bg-zinc-900 px-6 py-3 text-xs font-medium text-zinc-300 hover:border-white/30 hover:text-white transition-all"
+                href={emailInversionUrl}
+                className="group rounded-xl border border-white/[0.08] bg-zinc-900/60 p-4 transition-all hover:border-white/20 hover:bg-zinc-900 flex items-center justify-between"
               >
-                Enviar Correo Institucional
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider text-[#C5A880] font-medium">Correo Electrónico</div>
+                  <div className="text-xs font-semibold text-zinc-100 mt-0.5 truncate max-w-[170px]">{platformInfo.email}</div>
+                  <div className="text-[11px] text-zinc-400">Propuestas y contratos formales</div>
+                </div>
+                <span className="text-xl group-hover:scale-110 transition-transform">✉️</span>
               </a>
             </div>
 
+            {/* Redes Sociales Oficiales */}
+            <div className="mt-8 pt-6 border-t border-white/[0.06]">
+              <div className="text-xs text-zinc-400 mb-3">
+                Canales oficiales de <strong className="text-zinc-200">{platformInfo.agencyName}</strong>:
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <a
+                  href={platformInfo.social.instagram}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-full border border-white/[0.1] bg-zinc-900 px-4 py-2 text-xs font-medium text-zinc-300 hover:border-pink-500/50 hover:text-white hover:bg-pink-500/10 transition-all shadow-sm"
+                >
+                  <span>📷 Instagram</span>
+                  <span className="text-[11px] text-zinc-500">@ma_digital_artisans</span>
+                </a>
+                <a
+                  href={platformInfo.social.tiktok}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-full border border-white/[0.1] bg-zinc-900 px-4 py-2 text-xs font-medium text-zinc-300 hover:border-cyan-500/50 hover:text-white hover:bg-cyan-500/10 transition-all shadow-sm"
+                >
+                  <span>🎵 TikTok</span>
+                  <span className="text-[11px] text-zinc-500">@ma_digital_artisans</span>
+                </a>
+                <a
+                  href={platformInfo.social.facebook}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-full border border-white/[0.1] bg-zinc-900 px-4 py-2 text-xs font-medium text-zinc-300 hover:border-blue-500/50 hover:text-white hover:bg-blue-500/10 transition-all shadow-sm"
+                >
+                  <span>🌐 Facebook</span>
+                  <span className="text-[11px] text-zinc-500">MA Digital Artisans</span>
+                </a>
+              </div>
+            </div>
+
             <div className="mt-8 pt-6 border-t border-white/[0.06] flex flex-wrap justify-center gap-6 text-[11px] text-zinc-500">
-              <span>✓ Transferencia completa de repositorio</span>
+              <span>✓ Transferencia inmediata del código fuente</span>
               <span>✓ Soporte para base de datos SQLite / PostgreSQL</span>
-              <span>✓ Listo para producción en Vercel</span>
+              <span>✓ Despliegue en producción en la nube (Vercel)</span>
             </div>
           </div>
         </div>
@@ -1396,18 +1458,51 @@ export default function HomePage() {
 
       {/* Footer Minimalista */}
       <footer className="border-t border-white/[0.06] py-10 text-xs text-zinc-500">
-        <div className="mx-auto max-w-6xl px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-zinc-300">{platformInfo.name}</span>
-            <span>·</span>
+        <div className="mx-auto max-w-6xl px-6 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex flex-col sm:flex-row items-center gap-2 text-center sm:text-left">
+            <span className="font-medium text-zinc-300">{platformInfo.agencyName}</span>
+            <span className="hidden sm:inline">·</span>
             <span>{platformInfo.softwareBrand}</span>
           </div>
-          <div className="flex items-center gap-4 text-[11px]">
-            <a href="#sat-sync" className="hover:text-zinc-300">
-              Conexión SAT
+
+          <div className="flex flex-wrap items-center justify-center gap-4 text-[11px]">
+            <a
+              href={whatsappInversionUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-emerald-400 hover:underline font-medium"
+            >
+              WhatsApp (+52 444 321 1123)
             </a>
-            <a href="#por-que-invertir" className="hover:text-zinc-300">
-              Inversión & Retorno
+            <a
+              href={emailInversionUrl}
+              className="hover:text-zinc-300"
+            >
+              {platformInfo.email}
+            </a>
+            <a
+              href={platformInfo.social.instagram}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-zinc-300"
+            >
+              Instagram
+            </a>
+            <a
+              href={platformInfo.social.tiktok}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-zinc-300"
+            >
+              TikTok
+            </a>
+            <a
+              href={platformInfo.social.facebook}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-zinc-300"
+            >
+              Facebook
             </a>
             <Link href="/login" className="text-[#C5A880] hover:underline">
               Portal Interno
@@ -1415,6 +1510,23 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
+
+      {/* Botón Flotante de Compra / WhatsApp */}
+      <aside aria-label="Contacto de Compra" className="fixed bottom-6 right-6 z-50 flex items-center">
+        <a
+          href={whatsappInversionUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group flex items-center gap-2.5 rounded-full border border-emerald-500/40 bg-zinc-950/90 px-4 py-2.5 text-xs font-medium text-zinc-200 shadow-2xl backdrop-blur-md transition-all hover:scale-105 hover:border-emerald-400 hover:bg-emerald-950/40 hover:text-white"
+        >
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+          </span>
+          <span className="font-semibold text-emerald-400">Comprar Plataforma</span>
+          <span className="text-zinc-400 group-hover:text-zinc-200">· WhatsApp</span>
+        </a>
+      </aside>
     </div>
   );
 }
